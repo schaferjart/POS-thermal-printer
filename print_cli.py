@@ -91,6 +91,20 @@ def cmd_dictionary(args, config):
     print(f"[OK] Dictionary entry printed: {data['word']}")
 
 
+def cmd_markdown(args, config):
+    """Print a markdown file or inline markdown text."""
+    if args.file:
+        with open(args.file) as f:
+            md_text = f.read()
+    else:
+        md_text = args.text
+    p = connect(config, dummy=args.dummy)
+    fmt = Formatter(p, config["printer"]["paper_width"])
+    templates.markdown(fmt, md_text, config, show_date=not args.no_date)
+    preview = md_text.strip().split("\n")[0][:40]
+    print(f"[OK] Markdown printed: {preview}...")
+
+
 def main():
     parser = argparse.ArgumentParser(description="POS Thermal Printer CLI")
     parser.add_argument("--config", default="config.yaml", help="Config file path")
@@ -122,6 +136,12 @@ def main():
     p_dict.add_argument("--qr", help="QR code URL")
     p_dict.add_argument("--file", help="JSON file with entry data (overrides other args)")
 
+    # markdown
+    p_md = sub.add_parser("md", help="Print markdown text or file")
+    p_md.add_argument("text", nargs="?", help="Inline markdown text")
+    p_md.add_argument("--file", help="Path to .md file")
+    p_md.add_argument("--no-date", action="store_true", help="Hide date/time footer")
+
     args = parser.parse_args()
     config = load_config(args.config)
 
@@ -131,6 +151,7 @@ def main():
         "receipt": cmd_receipt,
         "label": cmd_label,
         "dictionary": cmd_dictionary,
+        "md": cmd_markdown,
     }
     cmds[args.command](args, config)
 

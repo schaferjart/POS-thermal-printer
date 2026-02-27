@@ -275,3 +275,15 @@ def dictionary_entry(fmt: Formatter, data: dict, config: dict = None):
 
     fmt.feed()
     fmt.cut()
+
+
+def markdown(fmt: Formatter, md_text: str, config: dict = None, show_date: bool = True):
+    """
+    Print markdown text rendered as an image with custom fonts.
+    Uses the dictionary config section for font/layout settings.
+    """
+    from md_renderer import render_markdown
+    img = render_markdown(md_text, config, show_date)
+    fmt.p.image(img)
+    fmt.feed()
+    fmt.cut()

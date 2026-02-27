@@ -94,6 +94,14 @@ def print_dictionary():
     return jsonify({"status": "ok", "template": "dictionary"})
 
 
+@app.route("/print/markdown", methods=["POST"])
+def print_markdown():
+    data = request.get_json(force=True)
+    fmt = get_formatter()
+    templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True))
+    return jsonify({"status": "ok", "template": "markdown"})
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "running", "dummy": _dummy})
