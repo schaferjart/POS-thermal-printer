@@ -22,6 +22,10 @@ Send jobs via HTTP POST:
     curl -X POST http://localhost:9100/print/list \
         -H "Content-Type: application/json" \
         -d '{"title":"Price List","rows":[["Coffee","3.50"],["Tea","2.80"]]}'
+
+    curl -X POST http://localhost:9100/print/dictionary \
+        -H "Content-Type: application/json" \
+        -d '{"word":"Ephemeral","definition":"Lasting for a very short time.","citations":["All fame is ephemeral."]}'
 """
 
 import sys
@@ -80,6 +84,14 @@ def print_list():
     rows = [tuple(r) for r in data["rows"]]
     templates.two_column_list(fmt, data["title"], rows)
     return jsonify({"status": "ok", "template": "list"})
+
+
+@app.route("/print/dictionary", methods=["POST"])
+def print_dictionary():
+    data = request.get_json(force=True)
+    fmt = get_formatter()
+    templates.dictionary_entry(fmt, data, _config)
+    return jsonify({"status": "ok", "template": "dictionary"})
 
 
 @app.route("/health", methods=["GET"])

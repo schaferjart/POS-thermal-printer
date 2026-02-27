@@ -71,6 +71,26 @@ def cmd_label(args, config):
     print(f"[OK] Label printed: {args.heading}")
 
 
+def cmd_dictionary(args, config):
+    """Print a dictionary entry — word, definition, citations."""
+    if args.file:
+        with open(args.file) as f:
+            data = json.load(f)
+    else:
+        data = {
+            "word": args.word,
+            "definition": args.definition,
+        }
+        if args.citations:
+            data["citations"] = args.citations
+        if args.qr:
+            data["qr_url"] = args.qr
+    p = connect(config, dummy=args.dummy)
+    fmt = Formatter(p, config["printer"]["paper_width"])
+    templates.dictionary_entry(fmt, data, config)
+    print(f"[OK] Dictionary entry printed: {data['word']}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="POS Thermal Printer CLI")
     parser.add_argument("--config", default="config.yaml", help="Config file path")
@@ -94,6 +114,14 @@ def main():
     p_lbl.add_argument("heading", help="Label heading")
     p_lbl.add_argument("lines", nargs="*", help="Body lines")
 
+    # dictionary
+    p_dict = sub.add_parser("dictionary", help="Print a dictionary entry")
+    p_dict.add_argument("word", nargs="?", help="The word")
+    p_dict.add_argument("definition", nargs="?", help="The definition")
+    p_dict.add_argument("--citations", nargs="*", help="Citation strings")
+    p_dict.add_argument("--qr", help="QR code URL")
+    p_dict.add_argument("--file", help="JSON file with entry data (overrides other args)")
+
     args = parser.parse_args()
     config = load_config(args.config)
 
@@ -102,6 +130,7 @@ def main():
         "message": cmd_message,
         "receipt": cmd_receipt,
         "label": cmd_label,
+        "dictionary": cmd_dictionary,
     }
     cmds[args.command](args, config)
 

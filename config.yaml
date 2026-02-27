@@ -25,3 +25,23 @@ template:
   show_datetime: true
   show_qr: false
   qr_base_url: ""
+
+# Dictionary art-print template
+dictionary:
+  # Font files (relative to project root)
+  font_word: "fonts/Burra-Bold.ttf"
+  font_body: "fonts/Burra-Thin.ttf"
+  font_cite: "fonts/Burra-Thin.ttf"
+  font_date: "fonts/Burra-Thin.ttf"
+  # Font sizes in pixels
+  size_word: 32
+  size_body: 20
+  size_cite: 18
+  size_date: 16
+  # Spacing
+  line_spacing: 1.4        # multiplier on font size
+  gap_after_word: 30       # px between word and definition
+  gap_before_cite: 20      # px before citations
+  margin: 20               # left/right margin in px
+  # Print width in pixels (576 for 80mm @ 203 DPI)
+  paper_px: 576

@@ -1,9 +1,17 @@
 """
-Receipt templates — reusable print layouts that accept structured data.
+Print templates — reusable layouts that accept structured data.
 """
 
+import os
+import textwrap
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
 from printer_core import Formatter
+
+# --- Font paths ---
+_FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+_FONT_THIN = os.path.join(_FONTS_DIR, "Burra-Thin.ttf")
+_FONT_BOLD = os.path.join(_FONTS_DIR, "Burra-Bold.ttf")
 
 
 def receipt(fmt: Formatter, data: dict, config: dict):
@@ -119,5 +127,151 @@ def two_column_list(fmt: Formatter, title_text: str, rows: list[tuple[str, str]]
     for left, right in rows:
         fmt.left_right(left, right)
     fmt.line()
+    fmt.feed()
+    fmt.cut()
+
+
+def _resolve_font_path(path):
+    """Resolve font path relative to project root."""
+    if os.path.isabs(path):
+        return path
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+
+
+def _render_dictionary_image(data: dict, config: dict = None):
+    """
+    Render a dictionary entry as a black-on-white image.
+    All layout settings come from config["dictionary"].
+    Returns a PIL Image ready to send to the printer.
+    """
+    cfg = (config or {}).get("dictionary", {})
+
+    paper_px = cfg.get("paper_px", 576)
+    margin = cfg.get("margin", 20)
+    line_spacing = cfg.get("line_spacing", 1.4)
+    gap_after_word = cfg.get("gap_after_word", 30)
+    gap_before_cite = cfg.get("gap_before_cite", 20)
+
+    sz_word = cfg.get("size_word", 32)
+    sz_body = cfg.get("size_body", 20)
+    sz_cite = cfg.get("size_cite", 18)
+    sz_date = cfg.get("size_date", 16)
+
+    usable = paper_px - margin * 2
+
+    # Load fonts from config paths (fall back to bundled Burra)
+    word_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_word", _FONT_BOLD)), sz_word)
+    body_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_body", _FONT_THIN)), sz_body)
+    cite_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_cite", _FONT_THIN)), sz_cite)
+    date_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_date", _FONT_THIN)), sz_date)
+
+    # --- Pre-calculate wrapped text ---
+    scratch = ImageDraw.Draw(Image.new("1", (1, 1)))
+
+    def wrap_text(text, font, max_width):
+        """Word-wrap text to fit within max_width pixels."""
+        words = text.split()
+        lines = []
+        current = ""
+        for word in words:
+            test = f"{current} {word}".strip()
+            bbox = scratch.textbbox((0, 0), test, font=font)
+            if bbox[2] > max_width and current:
+                lines.append(current)
+                current = word
+            else:
+                current = test
+        if current:
+            lines.append(current)
+        return lines
+
+    # Prepare all text blocks
+    word_lines = [data["word"]]
+    def_lines = wrap_text(data["definition"], body_font, usable)
+
+    cite_blocks = []
+    for cite in data.get("citations", []):
+        wrapped = wrap_text(f"- {cite}", cite_font, usable - 10)
+        for i in range(1, len(wrapped)):
+            wrapped[i] = f"  {wrapped[i]}"
+        cite_blocks.append(wrapped)
+
+    now = datetime.now().strftime("%Y-%m-%d  %H:%M")
+
+    # --- Calculate total height ---
+    y = margin
+    word_h = int(sz_word * line_spacing) * len(word_lines)
+    def_h = int(sz_body * line_spacing) * len(def_lines)
+    cite_gap = gap_before_cite if cite_blocks else 0
+    cite_h = 0
+    for block in cite_blocks:
+        cite_h += int(sz_cite * line_spacing) * len(block) + 6
+    sep_gap = 16
+    date_h = 24
+
+    total_h = (y + word_h + gap_after_word + def_h + cite_gap + cite_h
+               + sep_gap + date_h + margin)
+
+    # --- Draw ---
+    img = Image.new("1", (paper_px, total_h), 1)
+    draw = ImageDraw.Draw(img)
+
+    # Word (bold)
+    for line in word_lines:
+        draw.text((margin, y), line, font=word_font, fill=0)
+        y += int(sz_word * line_spacing)
+
+    y += gap_after_word
+
+    # Definition (thin)
+    for line in def_lines:
+        draw.text((margin, y), line, font=body_font, fill=0)
+        y += int(sz_body * line_spacing)
+
+    # Citations
+    if cite_blocks:
+        y += cite_gap
+        for block in cite_blocks:
+            for line in block:
+                draw.text((margin + 10, y), line, font=cite_font, fill=0)
+                y += int(sz_cite * line_spacing)
+            y += 6
+
+    # Dotted separator
+    y += sep_gap
+    dot_w = scratch.textbbox((0, 0), ". ", font=date_font)[2] or 8
+    dots = ". " * (usable // dot_w)
+    draw.text((margin, y), dots.strip(), font=date_font, fill=0)
+    y += 20
+
+    # Date
+    draw.text((margin, y), now, font=date_font, fill=0)
+
+    return img
+
+
+def dictionary_entry(fmt: Formatter, data: dict, config: dict = None):
+    """
+    Dictionary / glossary art-print template — rendered as image with custom font.
+
+    data = {
+        "word": "Ephemeral",
+        "definition": "Lasting for a very short time.",
+        "citations": [                          # optional
+            "The ephemeral beauty of cherry blossoms.",
+            "All fame is ephemeral. — Voltaire"
+        ],
+        "qr_url": "https://example.com/word",   # optional
+    }
+
+    Layout is configured in config.yaml under the "dictionary" key.
+    """
+    img = _render_dictionary_image(data, config)
+    fmt.p.image(img)
+
+    if data.get("qr_url"):
+        fmt.p.text("\n")
+        fmt.p.qr(data["qr_url"], size=3)
+
     fmt.feed()
     fmt.cut()

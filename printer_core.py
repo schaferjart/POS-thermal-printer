@@ -2,6 +2,7 @@
 Core printer module — handles connection and text formatting for ESC/POS thermal printers.
 """
 
+import textwrap
 import yaml
 from escpos.printer import Usb, Dummy
 
@@ -58,6 +59,24 @@ class Formatter:
         self.p.set(bold=True)
         self.p.text(f"{text}\n")
         self.p.set(bold=False)
+
+    def wrap(self, text, indent=0):
+        """Word-wrapped left-aligned text that respects paper width."""
+        prefix = " " * indent
+        for line in textwrap.fill(text, width=self.w - indent).split("\n"):
+            self.p.text(f"{prefix}{line}\n")
+
+    def italic_text(self, text):
+        """Underlined text (thermal printers have no italic — underline is the convention)."""
+        self.p.set(underline=1)
+        self.p.text(f"{text}\n")
+        self.p.set(underline=0)
+
+    def small(self, text):
+        """Smaller text using Font B."""
+        self.p.set(font="b")
+        self.p.text(f"{text}\n")
+        self.p.set(font="a")
 
     def right(self, text):
         """Right-aligned text."""
