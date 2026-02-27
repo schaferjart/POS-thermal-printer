@@ -1,0 +1,10 @@
+{
+    "receipt_id": "R-00142",
+    "payment_method": "Card",
+    "items": [
+        {"name": "Espresso", "qty": 2, "price": 2.50},
+        {"name": "Croissant", "qty": 1, "price": 3.00},
+        {"name": "Orange Juice", "qty": 1, "price": 4.20},
+        {"name": "Club Sandwich", "qty": 1, "price": 8.90}
+    ]
+}

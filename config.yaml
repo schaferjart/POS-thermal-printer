@@ -1,0 +1,27 @@
+# POS Printer Configuration
+printer:
+  vendor_id: 0x1fc9
+  product_id: 0x2016
+  # Paper width in characters (Font A = 48 chars for 80mm paper)
+  paper_width: 48
+  # Default encoding
+  encoding: "utf-8"
+
+# HTTP server settings (for receiving print jobs)
+server:
+  host: "0.0.0.0"
+  port: 9100
+
+# Default receipt template
+template:
+  header_lines:
+    - "MY STORE"
+    - "123 Main Street"
+    - "Tel: +33 1 23 45 67 89"
+  footer_lines:
+    - "Thank you for your visit!"
+    - "See you soon"
+  currency: "EUR"
+  show_datetime: true
+  show_qr: false
+  qr_base_url: ""
