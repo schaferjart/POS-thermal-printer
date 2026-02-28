@@ -31,6 +31,49 @@ macOS also needs libusb: `brew install libusb`
 ./print.sh message "Hello World" --title "NOTICE"
 ```
 
+## Image Printing
+
+Print photos and graphics with three dither modes:
+
+| Mode | Look | Best for |
+|---|---|---|
+| `floyd` (default) | Smooth, organic | Photos, portraits, detailed artwork |
+| `bayer` | Crosshatch grid | Stylized/retro look, pairs well with blur |
+| `halftone` | Dot grid (newspaper) | Bold graphics, high-contrast images |
+
+```bash
+# Print an image (Floyd-Steinberg, default)
+./print.sh image photo.jpg
+
+# Bayer dithering with gaussian blur
+./print.sh image photo.jpg --mode bayer --blur 10
+
+# Halftone with custom dot size
+./print.sh image photo.jpg --mode halftone --dot 4
+
+# Adjust contrast/brightness/sharpness
+./print.sh image photo.jpg --contrast 1.5 --brightness 1.1 --sharpness 1.4
+```
+
+### Strip Printing
+
+Slice an image into strips for wider or taller prints — tape them together for posters:
+
+```bash
+# 4 vertical strips (left to right) — tape side by side
+./print.sh slice photo.jpg 4 --direction vertical --mode bayer --blur 10
+
+# 3 horizontal strips (top to bottom)
+./print.sh slice photo.jpg 3 --direction horizontal --mode floyd
+```
+
+### Image HTTP Endpoint
+
+```bash
+curl -X POST http://localhost:9100/print/image \
+  -F "file=@photo.jpg" -F "mode=bayer" -F "blur=10"
+```
+
 ## Font Styles
 
 Three built-in styles, configured in `config.yaml`:
@@ -123,6 +166,8 @@ print_server.py    HTTP server for automated print jobs
 printer_core.py    Printer connection + text formatting helpers
 templates.py       Print templates (receipt, dictionary, markdown, etc.)
 md_renderer.py     Markdown → image renderer
+image_printer.py   Image dithering engine (floyd, bayer, halftone + blur)
+image_slicer.py    Vertical/horizontal strip slicing for poster prints
 config.yaml        Printer config + font style definitions
 fonts/             Font files
 ```
