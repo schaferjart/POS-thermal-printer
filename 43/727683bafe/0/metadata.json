@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "43727683bafe",
+  "session_id": "6eb2a75f-e995-4582-b992-3a8a856c7b5e",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-28T17:08:13.126684Z",
+  "branch": "worktree-ipad-wireless-printing",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "config.yaml",
+    "print_server.py",
+    "printer_core.py",
+    "requirements.txt",
+    "templates/index.html"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "de942b7e40e8",
+  "token_usage": {
+    "input_tokens": 23,
+    "cache_creation_tokens": 25789,
+    "cache_read_tokens": 764135,
+    "output_tokens": 7141,
+    "api_call_count": 19
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-28T17:08:12.986963Z",
+    "agent_lines": 227,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 227,
+    "agent_percentage": 100
+  },
+  "transcript_path": ".claude/projects/-Users-janos-Desktop-Active-POS--claude-worktrees-ipad-wireless-printing/6eb2a75f-e995-4582-b992-3a8a856c7b5e.jsonl"
+}

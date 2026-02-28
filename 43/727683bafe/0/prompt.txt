@@ -1,0 +1,73 @@
+Implement the following plan:
+
+# iPad Wireless Printing Support
+
+## Context
+
+The POS thermal printer (Xprinter XP-V330M) has USB + Serial + **LAN (Ethernet)** ports. Currently `printer_core.py` only supports USB connections. The goal is to let an iPad print wirelessly. The printer has no WiFi/Bluetooth, so the path is:
+
+**iPad → WiFi → Router → Ethernet → Printer** (direct network print)
+or
+**iPad → WiFi → Router → Server (Mac/RPi) → USB/Ethernet → Printer**
+
+The HTTP server already exists and listens on `0.0.0.0:9100`, but it lacks CORS, service discovery, and a web UI. The printer connection itself is USB-only.
+
+## Changes
+
+### 1. Add network printer support — `printer_core.py`
+- Import `escpos.printer.Network` alongside `Usb`
+- Update `connect()` to read a `connection` field from config (`usb` or `network`)
+- For `network`: use `Network(host, port)` with IP/port from config
+- Keep USB as default for backward compatibility
+
+### 2. Update config — `config.yaml`
+- Add `connection: "usb"` field (default, backward-compatible)
+- Add `network_host` and `network_port` (default `9100`) fields under `printer:`
+
+### 3. Add CORS — `print_server.py`
+- Install `flask-cors` and add to `requirements.txt`
+- Apply `CORS(app)` so iPad Safari/apps can hit the API
+
+### 4. Add Bonjour/mDNS discovery — `print_server.py`
+- Install `zeroconf` and add to `requirements.txt`
+- On server startup, register an `_http._tcp.local.` service so the iPad can discover the print server automatically in Safari/apps
+- Clean up registration on shutdown
+
+### 5. Add iPad web UI — `print_server.py` + new `templates/index.html`
+- Serve a single-page HTML at `GET /` with:
+  - Textarea for markdown input
+  - Style selector (dictionary / helvetica / acidic)
+  - Print button that POSTs to `/print/markdown`
+  - Quick-print buttons for message and receipt
+  - Mobile-responsive design (works in iPad Safari)
+- The HTML is self-contained (inline CSS/JS, no build step)
+
+### 6. Update dependencies — `requirements.txt`
+- Add `flask-cors`
+- Add `zeroconf`
+
+## Files to modify
+- `printer_core.py` — add `Network` import and connection logic
+- `config.yaml` — add network connection fields
+- `print_server.py` — add CORS, Bonjour, web UI route
+- `requirements.txt` — add flask-cors, zeroconf
+
+## Files to create
+- `templates/index.html` — iPad-friendly web UI
+
+## Verification
+1. Start server: `python print_server.py --dummy`
+2. Open `http://<server-ip>:9100/` in iPad Safari → web UI loads
+3. Type markdown, select style, tap Print → server receives the request
+4. Check Bonjour: on iPad, the service should appear via mDNS
+5. Test network printer: set `connection: network` in config with printer's IP → prints over LAN
+6. Test CORS: from a different origin, `fetch('http://<ip>:9100/health')` succeeds
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/janos/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
+
+---
+
+commit this
