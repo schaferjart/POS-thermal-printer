@@ -15,7 +15,8 @@ import json
 import sys
 from printer_core import load_config, connect, Formatter
 import templates
-from image_printer import process_image
+from image_printer import process_image, _prepare, _apply_blur, _dither_floyd, _dither_bayer, _dither_halftone
+from image_slicer import slice_vertical, slice_horizontal
 
 
 def cmd_test(args, config):
@@ -113,6 +114,57 @@ def cmd_image(args, config):
         print(f"[OK] Image printed: {args.path}")
 
 
+def cmd_slice(args, config):
+    """Print an image as vertical or horizontal strips with dithering."""
+    from PIL import ImageOps, ImageEnhance, ImageFilter
+
+    cfg = config.get("halftone", {})
+    mode = args.mode or cfg.get("mode", "floyd")
+    blur = args.blur if args.blur is not None else cfg.get("blur", 0)
+    contrast = args.contrast if args.contrast is not None else cfg.get("contrast", 1.3)
+    brightness = args.brightness if args.brightness is not None else cfg.get("brightness", 1.0)
+    sharpness = args.sharpness if args.sharpness is not None else cfg.get("sharpness", 1.2)
+    dot_size = args.dot or cfg.get("dot_size", 6)
+
+    dither_fn = {"floyd": _dither_floyd, "bayer": _dither_bayer, "halftone": _dither_halftone}[mode]
+
+    if args.direction == "vertical":
+        strips = slice_vertical(args.path, args.strips)
+    else:
+        strips = slice_horizontal(args.path, args.strips)
+
+    p = connect(config, dummy=args.dummy)
+    fmt = Formatter(p, config["printer"]["paper_width"])
+
+    for i, strip in enumerate(strips):
+        strip = strip.convert("L")
+        strip = ImageOps.autocontrast(strip)
+        if sharpness != 1.0:
+            strip = ImageEnhance.Sharpness(strip).enhance(sharpness)
+        if contrast != 1.0:
+            strip = ImageEnhance.Contrast(strip).enhance(contrast)
+        if brightness != 1.0:
+            strip = ImageEnhance.Brightness(strip).enhance(brightness)
+        if blur > 0:
+            strip = strip.filter(ImageFilter.GaussianBlur(radius=blur))
+
+        if mode == "halftone":
+            dithered = _dither_halftone(strip, dot_size=dot_size)
+        else:
+            dithered = dither_fn(strip)
+
+        fmt.blank()
+        fmt.bold(f"STRIP {i+1}/{args.strips}")
+        fmt.blank()
+        p.image(dithered)
+        fmt.blank()
+        fmt.line()
+
+    fmt.feed()
+    fmt.cut()
+    print(f"[OK] {args.strips} {args.direction} strips printed: {args.path}")
+
+
 def cmd_markdown(args, config):
     """Print a markdown file or inline markdown text."""
     if args.file:
@@ -169,6 +221,20 @@ def main():
     p_img.add_argument("--sharpness", type=float, help="Sharpness multiplier")
     p_img.add_argument("--blur", type=float, help="Gaussian blur radius (0=off)")
 
+    # slice
+    p_slc = sub.add_parser("slice", help="Print image as strips (vertical or horizontal)")
+    p_slc.add_argument("path", help="Path to image file")
+    p_slc.add_argument("strips", type=int, help="Number of strips")
+    p_slc.add_argument("--direction", choices=["vertical", "horizontal"], default="vertical",
+                       help="Slice direction (default: vertical)")
+    p_slc.add_argument("--mode", choices=["halftone", "floyd", "bayer"],
+                       help="Dither mode (default: from config)")
+    p_slc.add_argument("--dot", type=int, help="Halftone dot/cell size in px")
+    p_slc.add_argument("--contrast", type=float, help="Contrast multiplier")
+    p_slc.add_argument("--brightness", type=float, help="Brightness multiplier")
+    p_slc.add_argument("--sharpness", type=float, help="Sharpness multiplier")
+    p_slc.add_argument("--blur", type=float, help="Gaussian blur radius (0=off)")
+
     # markdown
     p_md = sub.add_parser("md", help="Print markdown text or file")
     p_md.add_argument("text", nargs="?", help="Inline markdown text")
@@ -185,6 +251,7 @@ def main():
         "receipt": cmd_receipt,
         "label": cmd_label,
         "image": cmd_image,
+        "slice": cmd_slice,
         "dictionary": cmd_dictionary,
         "md": cmd_markdown,
     }
