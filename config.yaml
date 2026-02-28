@@ -59,14 +59,14 @@ helvetica:
   font_cite_index: 12     # Thin
   font_date: "/System/Library/Fonts/HelveticaNeue.ttc"
   font_date_index: 5      # UltraLight
-  # Font sizes in pixels
-  size_word: 30
-  size_body: 18
-  size_cite: 16
-  size_date: 14
+  # Font sizes in pixels (~20% larger)
+  size_word: 36
+  size_body: 22
+  size_cite: 19
+  size_date: 17
   # Spacing
   line_spacing: 1.5
-  gap_after_word: 24
-  gap_before_cite: 16
+  gap_after_word: 29
+  gap_before_cite: 19
   margin: 24
   paper_px: 576

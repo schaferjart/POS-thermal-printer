@@ -38,25 +38,34 @@ def _load_font(path, size, index=0):
     return ImageFont.truetype(resolved, size=size, index=index)
 
 
-# Inline pattern: matches **bold** and *italic* spans
-_INLINE_RE = re.compile(r"(\*\*(.+?)\*\*|\*(.+?)\*)")
+# Inline patterns: **bold**, *italic*, ~~strikethrough~~, `code`
+_INLINE_RE = re.compile(
+    r"(\*\*(.+?)\*\*"        # **bold**
+    r"|~~(.+?)~~"             # ~~strikethrough~~
+    r"|`(.+?)`"               # `code`
+    r"|\*(.+?)\*)"            # *italic*
+)
 
 
 def _parse_inline(text):
     """
     Parse inline markdown into segments.
-    Returns list of (text, style) where style is 'bold', 'italic', or 'normal'.
+    Returns list of (text, style) where style is 'bold', 'italic',
+    'strikethrough', 'code', or 'normal'.
     """
     segments = []
     last = 0
     for m in _INLINE_RE.finditer(text):
-        # Text before this match
         if m.start() > last:
             segments.append((text[last:m.start()], "normal"))
         if m.group(2) is not None:
             segments.append((m.group(2), "bold"))
         elif m.group(3) is not None:
-            segments.append((m.group(3), "italic"))
+            segments.append((m.group(3), "strikethrough"))
+        elif m.group(4) is not None:
+            segments.append((m.group(4), "code"))
+        elif m.group(5) is not None:
+            segments.append((m.group(5), "italic"))
         last = m.end()
     if last < len(text):
         segments.append((text[last:], "normal"))
@@ -67,25 +76,29 @@ def _parse_md(text):
     """
     Parse markdown text into a list of blocks.
     Each block is a dict with 'type' and content fields.
+    Preserves leading indentation as 'indent' level (number of leading spaces/tabs).
     """
     blocks = []
     for line in text.split("\n"):
         stripped = line.strip()
+        # Count indent: each tab = 4 spaces
+        indent = len(line) - len(line.lstrip())
+        indent += line[:len(line) - len(line.lstrip())].count("\t") * 3  # tabs already counted as 1
 
         if not stripped:
             blocks.append({"type": "blank"})
         elif stripped.startswith("## "):
-            blocks.append({"type": "h2", "text": stripped[3:]})
+            blocks.append({"type": "h2", "text": stripped[3:], "indent": indent})
         elif stripped.startswith("# "):
-            blocks.append({"type": "h1", "text": stripped[2:]})
+            blocks.append({"type": "h1", "text": stripped[2:], "indent": indent})
         elif re.match(r"^-{3,}$", stripped):
             blocks.append({"type": "separator"})
         elif stripped.startswith("- "):
-            blocks.append({"type": "list", "text": stripped[2:]})
+            blocks.append({"type": "list", "text": stripped[2:], "indent": indent})
         elif stripped.startswith("> "):
-            blocks.append({"type": "quote", "text": stripped[2:]})
+            blocks.append({"type": "quote", "text": stripped[2:], "indent": indent})
         else:
-            blocks.append({"type": "paragraph", "text": stripped})
+            blocks.append({"type": "paragraph", "text": stripped, "indent": indent})
 
     return blocks
 
@@ -170,7 +183,9 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
     style_fonts = {
         "normal": font_body,
         "bold": font_bold,
-        "italic": font_body,  # drawn with underline
+        "italic": font_body,       # drawn with underline
+        "strikethrough": font_body,  # drawn with line through middle
+        "code": font_body,          # drawn with background box
     }
 
     blocks = _parse_md(md_text)
@@ -180,21 +195,29 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
     ops = []
     y = margin
 
+    # Pixels per indent level (roughly one space width in body font)
+    indent_px = text_width("  ", font_body)
+
     for block in blocks:
         btype = block["type"]
+        # Convert source indentation to pixel offset
+        src_indent = block.get("indent", 0)
+        px_offset = int(src_indent / 2) * indent_px if src_indent else 0
 
         if btype == "blank":
             y += int(sz_body * 0.6)
 
         elif btype == "h1":
-            for line in wrap_text(block["text"], font_h1, usable):
-                ops.append((y, "text", line, font_h1, margin))
+            x0 = margin + px_offset
+            for line in wrap_text(block["text"], font_h1, usable - px_offset):
+                ops.append((y, "text", line, font_h1, x0))
                 y += int(sz_h1 * line_spacing)
             y += gap_after_word
 
         elif btype == "h2":
-            for line in wrap_text(block["text"], font_h2, usable):
-                ops.append((y, "text", line, font_h2, margin))
+            x0 = margin + px_offset
+            for line in wrap_text(block["text"], font_h2, usable - px_offset):
+                ops.append((y, "text", line, font_h2, x0))
                 y += int(sz_h2 * line_spacing)
             y += int(sz_body * 0.3)
 
@@ -204,10 +227,9 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
 
         elif btype == "list":
             segments = _parse_inline(block["text"])
-            indent = margin + 20
-            # Draw dash with body font
+            indent = margin + 20 + px_offset
             dash_w = text_width("- ", font_body)
-            rows = wrap_segments(segments, style_fonts, usable - 20 - dash_w)
+            rows = wrap_segments(segments, style_fonts, usable - 20 - px_offset - dash_w)
             for i, row in enumerate(rows):
                 if i == 0:
                     ops.append((y, "text", "- ", font_body, indent - dash_w))
@@ -216,20 +238,20 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
 
         elif btype == "quote":
             segments = _parse_inline(block["text"])
-            indent = margin + 24
-            rows = wrap_segments(segments, style_fonts, usable - 24)
+            indent = margin + 24 + px_offset
+            rows = wrap_segments(segments, style_fonts, usable - 24 - px_offset)
             for row in rows:
-                # Draw a thin bar for the quote
-                ops.append((y, "quote_bar", None, None, margin + 8))
+                ops.append((y, "quote_bar", None, None, margin + 8 + px_offset))
                 ops.append((y, "segments", row, style_fonts, indent))
                 y += int(sz_body * line_spacing)
             y += int(sz_body * 0.2)
 
         elif btype == "paragraph":
             segments = _parse_inline(block["text"])
-            rows = wrap_segments(segments, style_fonts, usable)
+            x0 = margin + px_offset
+            rows = wrap_segments(segments, style_fonts, usable - px_offset)
             for row in rows:
-                ops.append((y, "segments", row, style_fonts, margin))
+                ops.append((y, "segments", row, style_fonts, x0))
                 y += int(sz_body * line_spacing)
 
     # Date at bottom
@@ -262,10 +284,20 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
                 font = fonts_map[style]
                 draw.text((cx, oy), seg_text, font=font, fill=0)
                 w = text_width(seg_text, font)
-                # Underline for italic
                 if style == "italic":
+                    # Underline
                     uh = oy + sz_body + 2
                     draw.line([(cx, uh), (cx + w - 4, uh)], fill=0, width=1)
+                elif style == "strikethrough":
+                    # Line through the middle of text
+                    sh = oy + int(sz_body * 0.55)
+                    draw.line([(cx, sh), (cx + w - 4, sh)], fill=0, width=1)
+                elif style == "code":
+                    # Dark background with white text effect (invert a box)
+                    pad = 2
+                    box = (cx - pad, oy + 2, cx + w - 2, oy + sz_body + pad)
+                    draw.rectangle(box, fill=0)
+                    draw.text((cx, oy), seg_text, font=font, fill=1)
                 cx += w
 
         elif kind == "separator":
