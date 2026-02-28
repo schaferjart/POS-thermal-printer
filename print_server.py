@@ -98,7 +98,7 @@ def print_dictionary():
 def print_markdown():
     data = request.get_json(force=True)
     fmt = get_formatter()
-    templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True))
+    templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True), style=data.get("style", "dictionary"))
     return jsonify({"status": "ok", "template": "markdown"})
 
 

@@ -45,3 +45,28 @@ dictionary:
   margin: 20               # left/right margin in px
   # Print width in pixels (576 for 80mm @ 203 DPI)
   paper_px: 576
+
+# Helvetica Neue template (clean, minimal)
+helvetica:
+  # .ttc font with index to select weight
+  font_word: "/System/Library/Fonts/HelveticaNeue.ttc"
+  font_word_index: 1      # Bold
+  font_body: "/System/Library/Fonts/HelveticaNeue.ttc"
+  font_body_index: 7      # Light
+  font_bold: "/System/Library/Fonts/HelveticaNeue.ttc"
+  font_bold_index: 1      # Bold
+  font_cite: "/System/Library/Fonts/HelveticaNeue.ttc"
+  font_cite_index: 12     # Thin
+  font_date: "/System/Library/Fonts/HelveticaNeue.ttc"
+  font_date_index: 5      # UltraLight
+  # Font sizes in pixels
+  size_word: 30
+  size_body: 18
+  size_cite: 16
+  size_date: 14
+  # Spacing
+  line_spacing: 1.5
+  gap_after_word: 24
+  gap_before_cite: 16
+  margin: 24
+  paper_px: 576

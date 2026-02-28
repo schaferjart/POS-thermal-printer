@@ -32,6 +32,12 @@ def _resolve_font_path(path):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
 
 
+def _load_font(path, size, index=0):
+    """Load a font, supporting both .ttf and .ttc (collection) files."""
+    resolved = _resolve_font_path(path)
+    return ImageFont.truetype(resolved, size=size, index=index)
+
+
 # Inline pattern: matches **bold** and *italic* spans
 _INLINE_RE = re.compile(r"(\*\*(.+?)\*\*|\*(.+?)\*)")
 
@@ -84,13 +90,13 @@ def _parse_md(text):
     return blocks
 
 
-def render_markdown(md_text: str, config: dict = None, show_date: bool = True):
+def render_markdown(md_text: str, config: dict = None, show_date: bool = True, style: str = "dictionary"):
     """
     Render markdown text to a PIL Image for thermal printing.
-    Uses the dictionary config section for font/layout settings.
+    style: config section to use for fonts/layout ('dictionary', 'helvetica', etc.)
     Returns a PIL Image.
     """
-    cfg = (config or {}).get("dictionary", {})
+    cfg = (config or {}).get(style, {})
 
     paper_px = cfg.get("paper_px", 576)
     margin = cfg.get("margin", 20)
@@ -105,13 +111,13 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True):
 
     usable = paper_px - margin * 2
 
-    # Load fonts
-    font_h1 = ImageFont.truetype(_resolve_font_path(cfg.get("font_word", _FONT_BOLD)), sz_h1)
-    font_h2 = ImageFont.truetype(_resolve_font_path(cfg.get("font_word", _FONT_BOLD)), sz_h2)
-    font_body = ImageFont.truetype(_resolve_font_path(cfg.get("font_body", _FONT_THIN)), sz_body)
-    font_bold = ImageFont.truetype(_resolve_font_path(cfg.get("font_word", _FONT_BOLD)), sz_body)
-    font_cite = ImageFont.truetype(_resolve_font_path(cfg.get("font_cite", _FONT_THIN)), sz_cite)
-    font_date = ImageFont.truetype(_resolve_font_path(cfg.get("font_date", _FONT_THIN)), sz_date)
+    # Load fonts (with .ttc index support)
+    font_h1 = _load_font(cfg.get("font_word", _FONT_BOLD), sz_h1, cfg.get("font_word_index", 0))
+    font_h2 = _load_font(cfg.get("font_word", _FONT_BOLD), sz_h2, cfg.get("font_word_index", 0))
+    font_body = _load_font(cfg.get("font_body", _FONT_THIN), sz_body, cfg.get("font_body_index", 0))
+    font_bold = _load_font(cfg.get("font_bold", cfg.get("font_word", _FONT_BOLD)), sz_body, cfg.get("font_bold_index", cfg.get("font_word_index", 0)))
+    font_cite = _load_font(cfg.get("font_cite", _FONT_THIN), sz_cite, cfg.get("font_cite_index", 0))
+    font_date = _load_font(cfg.get("font_date", _FONT_THIN), sz_date, cfg.get("font_date_index", 0))
 
     scratch = ImageDraw.Draw(Image.new("1", (1, 1)))
 

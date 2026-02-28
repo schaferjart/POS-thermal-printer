@@ -100,7 +100,7 @@ def cmd_markdown(args, config):
         md_text = args.text
     p = connect(config, dummy=args.dummy)
     fmt = Formatter(p, config["printer"]["paper_width"])
-    templates.markdown(fmt, md_text, config, show_date=not args.no_date)
+    templates.markdown(fmt, md_text, config, show_date=not args.no_date, style=args.style)
     preview = md_text.strip().split("\n")[0][:40]
     print(f"[OK] Markdown printed: {preview}...")
 
@@ -140,6 +140,7 @@ def main():
     p_md = sub.add_parser("md", help="Print markdown text or file")
     p_md.add_argument("text", nargs="?", help="Inline markdown text")
     p_md.add_argument("--file", help="Path to .md file")
+    p_md.add_argument("--style", default="dictionary", help="Style template: dictionary, helvetica")
     p_md.add_argument("--no-date", action="store_true", help="Hide date/time footer")
 
     args = parser.parse_args()
