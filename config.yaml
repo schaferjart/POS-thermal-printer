@@ -78,13 +78,13 @@ acidic:
   font_bold: "fonts/Acidic.TTF"
   font_cite: "fonts/Acidic.TTF"
   font_date: "fonts/Acidic.TTF"
-  size_word: 48
-  size_body: 40
-  size_cite: 36
-  size_date: 28
-  line_spacing: 1.3
-  gap_after_word: 20
-  gap_before_cite: 16
+  size_word: 240
+  size_body: 200
+  size_cite: 180
+  size_date: 140
+  line_spacing: 1.2
+  gap_after_word: 80
+  gap_before_cite: 60
   margin: 20
   paper_px: 576
   # Hard wrap: cut at character limit, not word boundary
