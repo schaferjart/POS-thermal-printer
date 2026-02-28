@@ -119,6 +119,19 @@
 </div>
 
 <div class="card">
+  <h2>Print Image</h2>
+  <input type="file" id="imgFile" accept="image/*" style="width:100%; font-size:15px; margin-bottom:12px;">
+  <div class="row">
+    <select id="dither">
+      <option value="floyd">Floyd-Steinberg</option>
+      <option value="halftone">Halftone</option>
+      <option value="bayer">Bayer</option>
+    </select>
+    <button class="btn-primary" onclick="printImage()">Print</button>
+  </div>
+</div>
+
+<div class="card">
   <h2>Quick Print</h2>
   <div class="quick-actions">
     <button class="btn-secondary" onclick="quickMessage()">Message</button>
@@ -158,6 +171,19 @@ function printMarkdown() {
   if (!text) { show('Enter some text first', false); return; }
   const style = document.getElementById('style').value;
   post('/print/markdown', { text, style, show_date: true });
+}
+
+function printImage() {
+  const file = document.getElementById('imgFile').files[0];
+  if (!file) { show('Select an image first', false); return; }
+  const mode = document.getElementById('dither').value;
+  const form = new FormData();
+  form.append('file', file);
+  form.append('mode', mode);
+  show('Sending...');
+  fetch(BASE + '/print/image', { method: 'POST', body: form })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); show('Printed!', true); })
+    .catch(e => show('Error: ' + e.message, false));
 }
 
 function quickMessage() {

@@ -28,15 +28,18 @@ Send jobs via HTTP POST:
         -d '{"word":"Ephemeral","definition":"Lasting for a very short time.","citations":["All fame is ephemeral."]}'
 """
 
+import os
 import sys
 import socket
 import atexit
 import argparse
+import tempfile
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from zeroconf import ServiceInfo, Zeroconf
 from printer_core import load_config, connect, Formatter
 import templates
+from image_printer import process_image
 
 app = Flask(__name__)
 CORS(app)
@@ -104,6 +107,58 @@ def print_dictionary():
     data = request.get_json(force=True)
     with_retry(lambda fmt: templates.dictionary_entry(fmt, data, _config))
     return jsonify({"status": "ok", "template": "dictionary"})
+
+
+@app.route("/print/image", methods=["POST"])
+def print_image():
+    """
+    Print an image with halftone/dithering.
+
+    Accepts multipart/form-data with:
+        file: image file (required)
+        mode: halftone | floyd | bayer (optional)
+        dot_size: int (optional)
+        contrast: float (optional)
+        brightness: float (optional)
+        sharpness: float (optional)
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    uploaded = request.files["file"]
+    if not uploaded.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    suffix = os.path.splitext(uploaded.filename)[1] or ".png"
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    try:
+        uploaded.save(tmp)
+        tmp.close()
+
+        mode = request.form.get("mode")
+        dot_size = request.form.get("dot_size")
+        contrast = request.form.get("contrast")
+        brightness = request.form.get("brightness")
+        sharpness = request.form.get("sharpness")
+
+        img = process_image(
+            tmp.name, _config,
+            mode=mode,
+            dot_size=int(dot_size) if dot_size else None,
+            contrast=float(contrast) if contrast else None,
+            brightness=float(brightness) if brightness else None,
+            sharpness=float(sharpness) if sharpness else None,
+        )
+
+        def do_print(fmt):
+            fmt.p.image(img)
+            fmt.feed()
+            fmt.cut()
+
+        with_retry(do_print)
+
+        return jsonify({"status": "ok", "template": "image", "mode": mode or "floyd"})
+    finally:
+        os.unlink(tmp.name)
 
 
 @app.route("/print/markdown", methods=["POST"])
