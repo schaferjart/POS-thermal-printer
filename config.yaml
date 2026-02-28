@@ -71,6 +71,16 @@ helvetica:
   margin: 24
   paper_px: 576
 
+# Halftone image printing
+halftone:
+  paper_px: 576           # 80mm @ 203 DPI
+  mode: floyd             # halftone | floyd | bayer
+  dot_size: 6             # halftone cell size in px
+  contrast: 1.3           # contrast multiplier
+  brightness: 1.0         # brightness multiplier
+  sharpness: 1.2          # sharpen before dithering
+  blur: 0                 # gaussian blur radius (0=off)
+
 # Acidic template — big, raw, hard character-wrap
 acidic:
   font_word: "fonts/Acidic.TTF"

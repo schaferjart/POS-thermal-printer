@@ -15,6 +15,7 @@ import json
 import sys
 from printer_core import load_config, connect, Formatter
 import templates
+from image_printer import process_image
 
 
 def cmd_test(args, config):
@@ -91,6 +92,27 @@ def cmd_dictionary(args, config):
     print(f"[OK] Dictionary entry printed: {data['word']}")
 
 
+def cmd_image(args, config):
+    """Print an image with halftone/dithering."""
+    img = process_image(
+        args.path, config,
+        mode=args.mode, dot_size=args.dot,
+        contrast=args.contrast, brightness=args.brightness,
+        sharpness=args.sharpness, blur=args.blur,
+    )
+    if args.dummy:
+        out = args.path.rsplit(".", 1)[0] + f"_preview_{args.mode or 'halftone'}.png"
+        img.save(out)
+        print(f"[DUMMY] Preview saved to {out}")
+    else:
+        p = connect(config, dummy=False)
+        fmt = Formatter(p, config["printer"]["paper_width"])
+        fmt.p.image(img)
+        fmt.feed()
+        fmt.cut()
+        print(f"[OK] Image printed: {args.path}")
+
+
 def cmd_markdown(args, config):
     """Print a markdown file or inline markdown text."""
     if args.file:
@@ -136,6 +158,17 @@ def main():
     p_dict.add_argument("--qr", help="QR code URL")
     p_dict.add_argument("--file", help="JSON file with entry data (overrides other args)")
 
+    # image
+    p_img = sub.add_parser("image", help="Print an image with halftone/dithering")
+    p_img.add_argument("path", help="Path to image file")
+    p_img.add_argument("--mode", choices=["halftone", "floyd", "bayer"],
+                       help="Dither mode (default: from config)")
+    p_img.add_argument("--dot", type=int, help="Halftone dot/cell size in px")
+    p_img.add_argument("--contrast", type=float, help="Contrast multiplier")
+    p_img.add_argument("--brightness", type=float, help="Brightness multiplier")
+    p_img.add_argument("--sharpness", type=float, help="Sharpness multiplier")
+    p_img.add_argument("--blur", type=float, help="Gaussian blur radius (0=off)")
+
     # markdown
     p_md = sub.add_parser("md", help="Print markdown text or file")
     p_md.add_argument("text", nargs="?", help="Inline markdown text")
@@ -151,6 +184,7 @@ def main():
         "message": cmd_message,
         "receipt": cmd_receipt,
         "label": cmd_label,
+        "image": cmd_image,
         "dictionary": cmd_dictionary,
         "md": cmd_markdown,
     }
