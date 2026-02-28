@@ -29,17 +29,23 @@ Send jobs via HTTP POST:
 """
 
 import sys
+import socket
+import atexit
 import argparse
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+from zeroconf import ServiceInfo, Zeroconf
 from printer_core import load_config, connect, Formatter
 import templates
 
 app = Flask(__name__)
+CORS(app)
 
 # Globals set at startup
 _config = None
 _printer = None
 _dummy = False
+_zeroconf = None
 
 
 def get_formatter():
@@ -107,6 +113,36 @@ def health():
     return jsonify({"status": "running", "dummy": _dummy})
 
 
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
+
+def register_mdns(port):
+    """Register the print server as a Bonjour/mDNS service for iPad discovery."""
+    global _zeroconf
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    info = ServiceInfo(
+        "_http._tcp.local.",
+        f"POS Thermal Printer._http._tcp.local.",
+        addresses=[socket.inet_aton(local_ip)],
+        port=port,
+        properties={"path": "/", "type": "thermal-printer"},
+        server=f"{hostname}.local.",
+    )
+    _zeroconf = Zeroconf()
+    _zeroconf.register_service(info)
+    print(f"[INFO] Bonjour: registered 'POS Thermal Printer' on {local_ip}:{port}")
+
+    def cleanup():
+        print("[INFO] Bonjour: unregistering service")
+        _zeroconf.unregister_service(info)
+        _zeroconf.close()
+
+    atexit.register(cleanup)
+
+
 def main():
     global _config, _printer, _dummy
 
@@ -129,6 +165,9 @@ def main():
     srv = _config.get("server", {})
     host = srv.get("host", "0.0.0.0")
     port = srv.get("port", 9100)
+
+    register_mdns(port)
+
     print(f"[INFO] Server listening on http://{host}:{port}")
     app.run(host=host, port=port, debug=False)
 
