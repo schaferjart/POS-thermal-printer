@@ -51,60 +51,65 @@ _zeroconf = None
 def get_formatter():
     global _printer
     width = _config.get("printer", {}).get("paper_width", 48)
-    # Reconnect if printer was closed or errored
+    return Formatter(_printer, width)
+
+
+def reconnect():
+    """Reconnect to the printer after a failed print."""
+    global _printer
+    _printer = connect(_config, dummy=_dummy)
+    width = _config.get("printer", {}).get("paper_width", 48)
+    return Formatter(_printer, width)
+
+
+def with_retry(fn):
+    """Run a print function, reconnecting once on failure."""
     try:
-        return Formatter(_printer, width)
+        fn(get_formatter())
     except Exception:
-        _printer = connect(_config, dummy=_dummy)
-        return Formatter(_printer, width)
+        fn(reconnect())
 
 
 @app.route("/print/receipt", methods=["POST"])
 def print_receipt():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.receipt(fmt, data, _config)
+    with_retry(lambda fmt: templates.receipt(fmt, data, _config))
     return jsonify({"status": "ok", "template": "receipt"})
 
 
 @app.route("/print/message", methods=["POST"])
 def print_message():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.simple_message(fmt, data["text"], data.get("title"))
+    with_retry(lambda fmt: templates.simple_message(fmt, data["text"], data.get("title")))
     return jsonify({"status": "ok", "template": "message"})
 
 
 @app.route("/print/label", methods=["POST"])
 def print_label():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.label(fmt, data["heading"], data.get("lines", []))
+    with_retry(lambda fmt: templates.label(fmt, data["heading"], data.get("lines", [])))
     return jsonify({"status": "ok", "template": "label"})
 
 
 @app.route("/print/list", methods=["POST"])
 def print_list():
     data = request.get_json(force=True)
-    fmt = get_formatter()
     rows = [tuple(r) for r in data["rows"]]
-    templates.two_column_list(fmt, data["title"], rows)
+    with_retry(lambda fmt: templates.two_column_list(fmt, data["title"], rows))
     return jsonify({"status": "ok", "template": "list"})
 
 
 @app.route("/print/dictionary", methods=["POST"])
 def print_dictionary():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.dictionary_entry(fmt, data, _config)
+    with_retry(lambda fmt: templates.dictionary_entry(fmt, data, _config))
     return jsonify({"status": "ok", "template": "dictionary"})
 
 
 @app.route("/print/markdown", methods=["POST"])
 def print_markdown():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True), style=data.get("style", "dictionary"))
+    with_retry(lambda fmt: templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True), style=data.get("style", "dictionary")))
     return jsonify({"status": "ok", "template": "markdown"})
 
 
@@ -121,26 +126,29 @@ def index():
 def register_mdns(port):
     """Register the print server as a Bonjour/mDNS service for iPad discovery."""
     global _zeroconf
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
-    info = ServiceInfo(
-        "_http._tcp.local.",
-        f"POS Thermal Printer._http._tcp.local.",
-        addresses=[socket.inet_aton(local_ip)],
-        port=port,
-        properties={"path": "/", "type": "thermal-printer"},
-        server=f"{hostname}.local.",
-    )
-    _zeroconf = Zeroconf()
-    _zeroconf.register_service(info)
-    print(f"[INFO] Bonjour: registered 'POS Thermal Printer' on {local_ip}:{port}")
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        info = ServiceInfo(
+            "_http._tcp.local.",
+            f"POS Thermal Printer._http._tcp.local.",
+            addresses=[socket.inet_aton(local_ip)],
+            port=port,
+            properties={"path": "/", "type": "thermal-printer"},
+            server=f"{hostname}.local.",
+        )
+        _zeroconf = Zeroconf()
+        _zeroconf.register_service(info, allow_name_change=True)
+        print(f"[INFO] Bonjour: registered '{info.name}' on {local_ip}:{port}")
 
-    def cleanup():
-        print("[INFO] Bonjour: unregistering service")
-        _zeroconf.unregister_service(info)
-        _zeroconf.close()
+        def cleanup():
+            print("[INFO] Bonjour: unregistering service")
+            _zeroconf.unregister_service(info)
+            _zeroconf.close()
 
-    atexit.register(cleanup)
+        atexit.register(cleanup)
+    except Exception as e:
+        print(f"[WARN] Bonjour registration failed: {e} — server will still work via IP")
 
 
 def main():
