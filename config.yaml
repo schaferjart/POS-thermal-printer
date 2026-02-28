@@ -70,3 +70,22 @@ helvetica:
   gap_before_cite: 19
   margin: 24
   paper_px: 576
+
+# Acidic template — big, raw, hard character-wrap
+acidic:
+  font_word: "fonts/Acidic.TTF"
+  font_body: "fonts/Acidic.TTF"
+  font_bold: "fonts/Acidic.TTF"
+  font_cite: "fonts/Acidic.TTF"
+  font_date: "fonts/Acidic.TTF"
+  size_word: 48
+  size_body: 40
+  size_cite: 36
+  size_date: 28
+  line_spacing: 1.3
+  gap_after_word: 20
+  gap_before_cite: 16
+  margin: 20
+  paper_px: 576
+  # Hard wrap: cut at character limit, not word boundary
+  hard_wrap: true

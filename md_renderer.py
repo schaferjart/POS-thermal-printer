@@ -32,6 +32,65 @@ def _resolve_font_path(path):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
 
 
+def _hard_wrap(text, font, max_w, text_width_fn):
+    """Wrap text by character count — cuts mid-word when the line is full."""
+    lines = []
+    current = ""
+    for ch in text:
+        test = current + ch
+        if text_width_fn(test, font) > max_w and current:
+            lines.append(current)
+            current = ch
+        else:
+            current = test
+    if current:
+        lines.append(current)
+    return lines or [""]
+
+
+def _hard_wrap_segments(segments, fonts, max_w, text_width_fn):
+    """Hard-wrap styled segments by character, preserving style per character."""
+    # Flatten to (char, style) pairs
+    chars = []
+    for text, style in segments:
+        for ch in text:
+            chars.append((ch, style))
+
+    rows = []
+    current_row = []
+    current_w = 0
+    for ch, style in chars:
+        font = fonts[style]
+        cw = text_width_fn(ch, font)
+        if current_w + cw > max_w and current_row:
+            rows.append(_merge_char_row(current_row))
+            current_row = []
+            current_w = 0
+        current_row.append((ch, style))
+        current_w += cw
+    if current_row:
+        rows.append(_merge_char_row(current_row))
+    return rows or [[("", "normal")]]
+
+
+def _merge_char_row(char_row):
+    """Merge consecutive (char, style) pairs with the same style into segments."""
+    if not char_row:
+        return [("", "normal")]
+    merged = []
+    current_text = char_row[0][0]
+    current_style = char_row[0][1]
+    for ch, style in char_row[1:]:
+        if style == current_style:
+            current_text += ch
+        else:
+            merged.append((current_text, current_style))
+            current_text = ch
+            current_style = style
+    merged.append((current_text, current_style))
+    return merged
+
+
 def _load_font(path, size, index=0):
     """Load a font, supporting both .ttf and .ttc (collection) files."""
     resolved = _resolve_font_path(path)
@@ -137,7 +196,11 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
     def text_width(text, font):
         return scratch.textbbox((0, 0), text, font=font)[2]
 
+    hard_wrap = cfg.get("hard_wrap", False)
+
     def wrap_text(text, font, max_w):
+        if hard_wrap:
+            return _hard_wrap(text, font, max_w, text_width)
         words = text.split()
         lines = []
         current = ""
@@ -154,10 +217,12 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
 
     def wrap_segments(segments, fonts, max_w):
         """
-        Word-wrap a list of (text, style) segments, returning rows.
-        Each row is a list of (text, style) segments that fit within max_w.
+        Wrap a list of (text, style) segments into rows.
+        In hard_wrap mode, cuts at character boundaries.
         """
-        # Flatten segments into words with styles
+        if hard_wrap:
+            return _hard_wrap_segments(segments, fonts, max_w, text_width)
+        # Soft wrap: break at word boundaries
         words = []
         for text, style in segments:
             for w in text.split():
