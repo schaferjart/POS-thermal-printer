@@ -74,6 +74,46 @@ curl -X POST http://localhost:9100/print/image \
   -F "file=@photo.jpg" -F "mode=bayer" -F "blur=10"
 ```
 
+## Portrait Pipeline
+
+AI-powered portrait-to-sculpture pipeline. Takes a photo, transforms it into a translucent wax bust aesthetic via Gemini Flash Image (through n8n), then crops at 4 face-landmark zoom levels with bayer dithering.
+
+Requires `OPENROUTER_API_KEY` env var and an active n8n workflow.
+
+```bash
+# Quick run (uses bundled script with API key)
+./run_portrait.sh photo.jpg
+
+# Full CLI with options
+./print.sh portrait photo.jpg --skip-selection
+./print.sh portrait photo1.jpg photo2.jpg photo3.jpg   # AI picks best
+./print.sh portrait photo.jpg --skip-transform          # print original with dithering
+./print.sh portrait photo.jpg --blur 15 --mode floyd
+
+# Dummy mode — save previews without printing
+./print.sh --dummy portrait photo.jpg --skip-selection
+```
+
+Output (4 zoom levels, computed from mediapipe face landmarks):
+- `zoom_0` — shoulders to hairline (full portrait)
+- `zoom_1` — chin to forehead, outer-eye width
+- `zoom_2` — inter-pupillary width, nose-bridge height
+- `zoom_3` — narrow vertical strip through face center
+
+The style prompt lives in `config.yaml` under `portrait.style_prompt` — edit it directly and re-run.
+
+### Portrait HTTP Endpoints
+
+```bash
+# Full pipeline (upload photos, transform + print)
+curl -X POST http://localhost:9100/portrait/capture \
+  -F "file=@photo.jpg"
+
+# Transform only (returns PNG, no printing)
+curl -X POST http://localhost:9100/portrait/transform \
+  -F "file=@photo.jpg" --output statue.png
+```
+
 ## Font Styles
 
 Three built-in styles, configured in `config.yaml`:
@@ -161,15 +201,17 @@ Then use it: `./print.sh md --file text.md --style mystyle`
 
 ```
 print.sh           Wrapper script (no venv activation needed)
-print_cli.py       CLI tool
-print_server.py    HTTP server for automated print jobs
-printer_core.py    Printer connection + text formatting helpers
-templates.py       Print templates (receipt, dictionary, markdown, etc.)
-md_renderer.py     Markdown → image renderer
-image_printer.py   Image dithering engine (floyd, bayer, halftone + blur)
-image_slicer.py    Vertical/horizontal strip slicing for poster prints
-config.yaml        Printer config + font style definitions
-fonts/             Font files
+print_cli.py          CLI tool
+print_server.py       HTTP server for automated print jobs
+printer_core.py       Printer connection + text formatting helpers
+templates.py          Print templates (receipt, dictionary, markdown, etc.)
+md_renderer.py        Markdown → image renderer
+image_printer.py      Image dithering engine (floyd, bayer, halftone + blur)
+image_slicer.py       Vertical/horizontal strip slicing for poster prints
+portrait_pipeline.py  Portrait-to-statue pipeline (n8n + mediapipe)
+run_portrait.sh       Quick-run script for portrait pipeline
+config.yaml           Printer config + font style definitions + portrait prompt
+fonts/                Font files
 ```
 
 ## Raspberry Pi

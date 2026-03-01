@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime
 from printer_core import load_config, connect, Formatter
 import templates
 from image_printer import process_image, _prepare, _apply_blur, _dither_floyd, _dither_bayer, _dither_halftone
@@ -110,6 +111,10 @@ def cmd_image(args, config):
     else:
         p = connect(config, dummy=False)
         fmt = Formatter(p, config["printer"]["paper_width"])
+        label = os.path.basename(args.path)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        fmt.bold(f"{label}  {timestamp}")
+        fmt.blank()
         fmt.p.image(img)
         fmt.feed()
         fmt.cut()
