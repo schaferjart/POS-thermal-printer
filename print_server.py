@@ -139,6 +139,7 @@ def print_image():
         contrast = request.form.get("contrast")
         brightness = request.form.get("brightness")
         sharpness = request.form.get("sharpness")
+        blur = request.form.get("blur")
 
         img = process_image(
             tmp.name, _config,
@@ -147,9 +148,19 @@ def print_image():
             contrast=float(contrast) if contrast else None,
             brightness=float(brightness) if brightness else None,
             sharpness=float(sharpness) if sharpness else None,
+            blur=float(blur) if blur else None,
         )
 
+        mode_name = {"floyd": "FLOYD-STEINBERG", "halftone": "HALFTONE", "bayer": "BAYER 8x8"}.get(mode or "floyd", mode or "floyd")
+        blur_val = blur
+        label = f"{mode_name} + BLUR {blur_val}" if blur_val else mode_name
+
         def do_print(fmt):
+            fmt.p._raw(b'\x1b\x21\x01')  # ESC ! 0x01: Font B, no bold, no double
+            fmt.p._raw(b'\x1d\x21\x00')  # GS ! 0x00: 1x width, 1x height
+            fmt.p.text(label + '\n')
+            fmt.p._raw(b'\x1b\x21\x00')  # reset to Font A normal
+            fmt.blank()
             fmt.p.image(img)
             fmt.feed()
             fmt.cut()

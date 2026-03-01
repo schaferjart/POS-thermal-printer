@@ -127,6 +127,14 @@
       <option value="halftone">Halftone</option>
       <option value="bayer">Bayer</option>
     </select>
+    <select id="blur">
+      <option value="1">Blur 1</option>
+      <option value="2">Blur 2</option>
+      <option value="5">Blur 5</option>
+      <option value="10">Blur 10</option>
+      <option value="20">Blur 20</option>
+      <option value="50">Blur 50</option>
+    </select>
     <button class="btn-primary" onclick="printImage()">Print</button>
   </div>
 </div>
@@ -177,9 +185,11 @@ function printImage() {
   const file = document.getElementById('imgFile').files[0];
   if (!file) { show('Select an image first', false); return; }
   const mode = document.getElementById('dither').value;
+  const blur = document.getElementById('blur').value;
   const form = new FormData();
   form.append('file', file);
   form.append('mode', mode);
+  form.append('blur', blur);
   show('Sending...');
   fetch(BASE + '/print/image', { method: 'POST', body: form })
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); show('Printed!', true); })
