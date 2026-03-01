@@ -81,6 +81,112 @@ halftone:
   sharpness: 1.2          # sharpen before dithering
   blur: 0                 # gaussian blur radius (0=off)
 
+# Portrait pipeline — AI-driven portrait-to-statue transformation
+portrait:
+  # API keys (loaded from env vars)
+  openrouter_api_key_env: "OPENROUTER_API_KEY"
+
+  # Photo selection
+  selection_model: "google/gemini-3.1-flash-image-preview"
+
+  # Style transfer via n8n workflow
+  n8n_webhook_url: "https://n8n.baufer.beauty/webhook/portrait-statue"
+
+  # ── EDIT THIS PROMPT ──
+  # This is the full instruction sent to Gemini 2.5 Flash Image.
+  # Change it here and re-run — no need to touch n8n.
+  style_prompt: >
+    Photograph of a life-size human head and upper torso cast in
+    translucent wax. Museum catalog image. Medium format camera,
+    90mm lens, f/4. The subject gazes directly into the camera.
+
+    The face is clean — no beard, no stubble, no facial hair.
+    Smooth jaw, smooth chin, smooth upper lip. Scalp hair is
+    visible but coated and frosted in the same wax — individual
+    strands embedded in the surface, bleached, like hair preserved
+    in resin. The hairline is natural.
+
+    FRAME: Head, full neck, and upper shoulders visible. Portrait
+    2:3. Shoulders dissolve into background. Do not crop at jaw.
+
+    THE MATERIAL IS THE IMAGE. Everything about this photograph —
+    the lighting, the texture, the tone — is a consequence of
+    what this object is made of. The head is cast in a TRANSLUCENT
+    WAX with real physical depth. The wax is not a thin coating —
+    it is the substance of the sculpture itself, several
+    millimeters thick everywhere. It has body. It has mass. Light
+    does not just land on this material — it enters it, travels
+    through it, scatters inside it, and exits somewhere nearby.
+
+    SUBSURFACE BEHAVIOR: Where the form is convex and faces the
+    overhead light — the center of the forehead, the nose bridge,
+    the peak of the cheekbones — light penetrates into the wax
+    and diffuses internally, producing a soft GLOW that comes
+    from WITHIN the material. This glow has naturally soft edges
+    because the light is spreading inside a translucent solid,
+    not reflecting off a surface. The nose bridge is bright at
+    its center but blooms outward gently, fading gradually into
+    the surrounding tone. It is not a sharp specular reflection
+    or a hard stripe — it is light moving through wax. The
+    forehead glows from inside. The cheekbones have a faint
+    internal luminosity. This subsurface scattering is the
+    defining visual quality of the entire image.
+
+    Where the form is concave or turned away — eye sockets, sides
+    of the nose, under the chin, temples — less light enters the
+    material, so these areas are quieter and greyer. But the
+    transitions are EXTREMELY gradual because the light is
+    diffusing through a continuous solid, not casting shadows on
+    an opaque surface. There are no hard shadow edges anywhere.
+
+    LIGHT SOURCE: A single soft overhead point light — nothing
+    dramatic, a standard diffused ceiling fixture. The light
+    source is simple. The MATERIAL does all the visual work.
+
+    SURFACE TEXTURE: The wax has a soft waxy sheen — not wet,
+    not metallic, but the quiet organic gloss of cooled beeswax.
+    The surface has visible layered texture everywhere: fine
+    overlapping flow-marks where the wax settled, subtle ridges,
+    hairline veins and fine patterning visible beneath the
+    translucent layers — like veining in marble or fracture
+    patterns inside ice. This texture is omnipresent and uniform
+    across skull, face, neck, and shoulders. No smooth or bare
+    patches. The wax is fully cooled and solidified — it does
+    not drip, flow, or move. It is still and frozen.
+
+    TONE: The wax is pale cool GREY — not white. The background
+    is BRIGHTER than the head. Grey sculpture in a bright
+    near-white field. Monochrome, no color. No true blacks.
+
+    EYES: Photorealistic, natural, alive. The only non-wax
+    element. They sit quietly within the tonal space.
+
+    EYEBROWS: Visible as frosted relief — coated, bleached,
+    structurally present but muted.
+
+    FOCUS: Shallow depth of field. Sharp at the cheekbones,
+    softening at the ears and crown. The surface texture is
+    razor-crisp on the central face.
+
+    BONE STRUCTURE: Cheekbones, brow ridge, jaw angle, and nose
+    ridge read through the material. This is a specific
+    recognizable individual, not a generic form.
+
+    NOT metallic. NOT chrome. NOT dripping. NOT a 3D
+    render. NOT body paint. NOT digitally smooth. A physical
+    translucent wax sculpture where the material itself creates
+    all the light behavior in the image.
+
+  # Print output
+  blur: 10
+  dither_mode: bayer
+
+  # Zoom crops — face-landmark based (computed from mediapipe)
+  # zoom_0: shoulders to hairline (full portrait)
+  # zoom_1: chin to forehead, outer-eye to outer-eye width (neck/face)
+  # zoom_2: eye-center to eye-center width, nose-bridge height
+  # zoom_3: narrow strip through face center (nose width)
+
 # Acidic template — big, raw, hard character-wrap
 acidic:
   font_word: "fonts/Acidic.TTF"
