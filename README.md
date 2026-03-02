@@ -81,7 +81,8 @@ AI-powered portrait-to-sculpture pipeline. Takes a photo, transforms it into a t
 Requires `OPENROUTER_API_KEY` env var and an active n8n workflow.
 
 ```bash
-# Quick run (uses bundled script with API key)
+# Quick run (dummy mode, saves previews)
+export OPENROUTER_API_KEY="your-key-here"
 ./run_portrait.sh photo.jpg
 
 # Full CLI with options
@@ -200,7 +201,7 @@ Then use it: `./print.sh md --file text.md --style mystyle`
 ## Files
 
 ```
-print.sh           Wrapper script (no venv activation needed)
+print.sh              Wrapper script (no venv activation needed)
 print_cli.py          CLI tool
 print_server.py       HTTP server for automated print jobs
 printer_core.py       Printer connection + text formatting helpers
