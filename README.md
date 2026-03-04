@@ -299,6 +299,21 @@ sudo systemctl start pos-printer.service
 
 The Pi will now connect to WiFi and start the print server on every boot. Check status with `sudo systemctl status pos-printer.service`.
 
+### Hostname Discovery (mDNS)
+
+So you don't need to look up the Pi's IP every time:
+
+```bash
+sudo apt install -y avahi-daemon
+sudo systemctl enable avahi-daemon
+```
+
+Now reach the Pi at `raspberrypi.local` from any device on the same network:
+
+```bash
+curl http://raspberrypi.local:9100/health
+```
+
 ### Sending Print Jobs Over the Network
 
 Once the server is running, any device on the same network can print:
