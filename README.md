@@ -314,6 +314,14 @@ Now reach the Pi at `raspberrypi.local` from any device on the same network:
 curl http://raspberrypi.local:9100/health
 ```
 
+### Finding the Pi on the Network
+
+mDNS (`raspberrypi.local`) works on home networks but **not on eduroam** (blocks multicast). To find the Pi on eduroam, scan for its MAC address (Pi 3 MACs start with `b8:27`):
+
+```bash
+arp -a | grep -i "b8:27"
+```
+
 ### Sending Print Jobs Over the Network
 
 Once the server is running, any device on the same network can print:
