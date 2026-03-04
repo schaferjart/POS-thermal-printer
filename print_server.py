@@ -30,70 +30,82 @@ Send jobs via HTTP POST:
 
 import os
 import sys
+import socket
+import atexit
 import argparse
 import tempfile
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+from zeroconf import ServiceInfo, Zeroconf
 from printer_core import load_config, connect, Formatter
 import templates
 from image_printer import process_image
 
 app = Flask(__name__)
+CORS(app)
 
 # Globals set at startup
 _config = None
 _printer = None
 _dummy = False
+_zeroconf = None
 
 
 def get_formatter():
     global _printer
     width = _config.get("printer", {}).get("paper_width", 48)
-    # Reconnect if printer was closed or errored
+    return Formatter(_printer, width)
+
+
+def reconnect():
+    """Reconnect to the printer after a failed print."""
+    global _printer
+    _printer = connect(_config, dummy=_dummy)
+    width = _config.get("printer", {}).get("paper_width", 48)
+    return Formatter(_printer, width)
+
+
+def with_retry(fn):
+    """Run a print function, reconnecting once on failure."""
     try:
-        return Formatter(_printer, width)
+        fn(get_formatter())
     except Exception:
-        _printer = connect(_config, dummy=_dummy)
-        return Formatter(_printer, width)
+        fn(reconnect())
 
 
 @app.route("/print/receipt", methods=["POST"])
 def print_receipt():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.receipt(fmt, data, _config)
+    with_retry(lambda fmt: templates.receipt(fmt, data, _config))
     return jsonify({"status": "ok", "template": "receipt"})
 
 
 @app.route("/print/message", methods=["POST"])
 def print_message():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.simple_message(fmt, data["text"], data.get("title"))
+    with_retry(lambda fmt: templates.simple_message(fmt, data["text"], data.get("title")))
     return jsonify({"status": "ok", "template": "message"})
 
 
 @app.route("/print/label", methods=["POST"])
 def print_label():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.label(fmt, data["heading"], data.get("lines", []))
+    with_retry(lambda fmt: templates.label(fmt, data["heading"], data.get("lines", [])))
     return jsonify({"status": "ok", "template": "label"})
 
 
 @app.route("/print/list", methods=["POST"])
 def print_list():
     data = request.get_json(force=True)
-    fmt = get_formatter()
     rows = [tuple(r) for r in data["rows"]]
-    templates.two_column_list(fmt, data["title"], rows)
+    with_retry(lambda fmt: templates.two_column_list(fmt, data["title"], rows))
     return jsonify({"status": "ok", "template": "list"})
 
 
 @app.route("/print/dictionary", methods=["POST"])
 def print_dictionary():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.dictionary_entry(fmt, data, _config)
+    with_retry(lambda fmt: templates.dictionary_entry(fmt, data, _config))
     return jsonify({"status": "ok", "template": "dictionary"})
 
 
@@ -104,11 +116,12 @@ def print_image():
 
     Accepts multipart/form-data with:
         file: image file (required)
-        mode: halftone | floyd | ordered (optional)
+        mode: halftone | floyd | bayer (optional)
         dot_size: int (optional)
         contrast: float (optional)
         brightness: float (optional)
         sharpness: float (optional)
+        blur: float (optional)
     """
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
@@ -116,7 +129,6 @@ def print_image():
     if not uploaded.filename:
         return jsonify({"error": "Empty filename"}), 400
 
-    # Save to temp file so process_image can open it
     suffix = os.path.splitext(uploaded.filename)[1] or ".png"
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     try:
@@ -128,6 +140,7 @@ def print_image():
         contrast = request.form.get("contrast")
         brightness = request.form.get("brightness")
         sharpness = request.form.get("sharpness")
+        blur = request.form.get("blur")
 
         img = process_image(
             tmp.name, _config,
@@ -136,14 +149,26 @@ def print_image():
             contrast=float(contrast) if contrast else None,
             brightness=float(brightness) if brightness else None,
             sharpness=float(sharpness) if sharpness else None,
+            blur=float(blur) if blur else None,
         )
 
-        fmt = get_formatter()
-        fmt.p.image(img)
-        fmt.feed()
-        fmt.cut()
+        mode_name = {"floyd": "FLOYD-STEINBERG", "halftone": "HALFTONE", "bayer": "BAYER 8x8"}.get(mode or "floyd", mode or "floyd")
+        blur_val = blur
+        label = f"{mode_name} + BLUR {blur_val}" if blur_val else mode_name
 
-        return jsonify({"status": "ok", "template": "image", "mode": mode or "halftone"})
+        def do_print(fmt):
+            fmt.p._raw(b'\x1b\x21\x01')  # ESC ! 0x01: Font B
+            fmt.p._raw(b'\x1d\x21\x00')  # GS ! 0x00: 1x width, 1x height
+            fmt.p.text(label + '\n')
+            fmt.p._raw(b'\x1b\x21\x00')  # reset to Font A normal
+            fmt.blank()
+            fmt.p.image(img)
+            fmt.feed()
+            fmt.cut()
+
+        with_retry(do_print)
+
+        return jsonify({"status": "ok", "template": "image", "mode": mode or "floyd"})
     finally:
         os.unlink(tmp.name)
 
@@ -151,14 +176,46 @@ def print_image():
 @app.route("/print/markdown", methods=["POST"])
 def print_markdown():
     data = request.get_json(force=True)
-    fmt = get_formatter()
-    templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True), style=data.get("style", "dictionary"))
+    with_retry(lambda fmt: templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True), style=data.get("style", "dictionary")))
     return jsonify({"status": "ok", "template": "markdown"})
 
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "running", "dummy": _dummy})
+
+
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
+
+def register_mdns(port):
+    """Register the print server as a Bonjour/mDNS service for iPad discovery."""
+    global _zeroconf
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        info = ServiceInfo(
+            "_http._tcp.local.",
+            f"POS Thermal Printer._http._tcp.local.",
+            addresses=[socket.inet_aton(local_ip)],
+            port=port,
+            properties={"path": "/", "type": "thermal-printer"},
+            server=f"{hostname}.local.",
+        )
+        _zeroconf = Zeroconf()
+        _zeroconf.register_service(info, allow_name_change=True)
+        print(f"[INFO] Bonjour: registered '{info.name}' on {local_ip}:{port}")
+
+        def cleanup():
+            print("[INFO] Bonjour: unregistering service")
+            _zeroconf.unregister_service(info)
+            _zeroconf.close()
+
+        atexit.register(cleanup)
+    except Exception as e:
+        print(f"[WARN] Bonjour registration failed: {e} — server will still work via IP")
 
 
 def main():
@@ -183,6 +240,9 @@ def main():
     srv = _config.get("server", {})
     host = srv.get("host", "0.0.0.0")
     port = srv.get("port", 9100)
+
+    register_mdns(port)
+
     print(f"[INFO] Server listening on http://{host}:{port}")
     app.run(host=host, port=port, debug=False)
 

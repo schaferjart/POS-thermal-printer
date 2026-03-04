@@ -4,7 +4,7 @@ Core printer module — handles connection and text formatting for ESC/POS therm
 
 import textwrap
 import yaml
-from escpos.printer import Usb, Dummy
+from escpos.printer import Usb, Network, Dummy
 
 
 def load_config(path="config.yaml"):
@@ -19,6 +19,11 @@ def connect(config=None, dummy=False):
     if dummy:
         return Dummy()
     pc = config["printer"]
+    conn = pc.get("connection", "usb")
+    if conn == "network":
+        host = pc["network_host"]
+        port = pc.get("network_port", 9100)
+        return Network(host, port=port)
     return Usb(pc["vendor_id"], pc["product_id"])
 
 

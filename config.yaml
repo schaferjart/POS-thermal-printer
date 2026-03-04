@@ -1,7 +1,12 @@
 # POS Printer Configuration
 printer:
+  # Connection type: "usb" or "network"
+  connection: "usb"
   vendor_id: 0x1fc9
   product_id: 0x2016
+  # Network printer settings (used when connection: "network")
+  network_host: "192.168.1.100"
+  network_port: 9100
   # Paper width in characters (Font A = 48 chars for 80mm paper)
   paper_width: 48
   # Default encoding

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>POS Printer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    padding: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .card h2 {
+    font-size: 15px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #86868b;
+    margin-bottom: 12px;
+  }
+  textarea {
+    width: 100%;
+    min-height: 180px;
+    border: 1px solid #d2d2d7;
+    border-radius: 8px;
+    padding: 12px;
+    font-family: "SF Mono", "Menlo", monospace;
+    font-size: 14px;
+    resize: vertical;
+    -webkit-appearance: none;
+  }
+  textarea:focus { outline: none; border-color: #0071e3; }
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  select {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #d2d2d7;
+    border-radius: 8px;
+    font-size: 15px;
+    background: #fff;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.15s;
+  }
+  button:active { opacity: 0.7; }
+  .btn-primary {
+    background: #0071e3;
+    color: #fff;
+    flex: 1;
+  }
+  .btn-secondary {
+    background: #e8e8ed;
+    color: #1d1d1f;
+    flex: 1;
+  }
+  #status {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 14px;
+    min-height: 20px;
+    color: #86868b;
+  }
+  #status.ok { color: #34c759; }
+  #status.err { color: #ff3b30; }
+  .quick-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .quick-actions button { flex: 1; min-width: 120px; }
+</style>
+</head>
+<body>
+
+<h1>POS Printer</h1>
+
+<div class="card">
+  <h2>Print Markdown</h2>
+  <textarea id="md" placeholder="Type or paste markdown here..."></textarea>
+  <div class="row">
+    <select id="style">
+      <option value="dictionary">Dictionary</option>
+      <option value="helvetica">Helvetica</option>
+      <option value="acidic">Acidic</option>
+    </select>
+    <button class="btn-primary" onclick="printMarkdown()">Print</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Print Image</h2>
+  <input type="file" id="imgFile" accept="image/*" style="width:100%; font-size:15px; margin-bottom:12px;">
+  <div class="row">
+    <select id="dither">
+      <option value="floyd">Floyd-Steinberg</option>
+      <option value="halftone">Halftone</option>
+      <option value="bayer">Bayer</option>
+    </select>
+    <select id="blur">
+      <option value="1">Blur 1</option>
+      <option value="2">Blur 2</option>
+      <option value="5">Blur 5</option>
+      <option value="10">Blur 10</option>
+      <option value="20">Blur 20</option>
+      <option value="50">Blur 50</option>
+    </select>
+    <button class="btn-primary" onclick="printImage()">Print</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Quick Print</h2>
+  <div class="quick-actions">
+    <button class="btn-secondary" onclick="quickMessage()">Message</button>
+    <button class="btn-secondary" onclick="quickReceipt()">Receipt</button>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<script>
+const BASE = location.origin;
+const status = document.getElementById('status');
+
+function show(msg, ok) {
+  status.textContent = msg;
+  status.className = ok ? 'ok' : (ok === false ? 'err' : '');
+  if (ok !== undefined) setTimeout(() => { status.textContent = ''; status.className = ''; }, 3000);
+}
+
+async function post(path, body) {
+  show('Sending...');
+  try {
+    const r = await fetch(BASE + path, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    show('Printed!', true);
+  } catch (e) {
+    show('Error: ' + e.message, false);
+  }
+}
+
+function printMarkdown() {
+  const text = document.getElementById('md').value.trim();
+  if (!text) { show('Enter some text first', false); return; }
+  const style = document.getElementById('style').value;
+  post('/print/markdown', { text, style, show_date: true });
+}
+
+function printImage() {
+  const file = document.getElementById('imgFile').files[0];
+  if (!file) { show('Select an image first', false); return; }
+  const mode = document.getElementById('dither').value;
+  const blur = document.getElementById('blur').value;
+  const form = new FormData();
+  form.append('file', file);
+  form.append('mode', mode);
+  form.append('blur', blur);
+  show('Sending...');
+  fetch(BASE + '/print/image', { method: 'POST', body: form })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); show('Printed!', true); })
+    .catch(e => show('Error: ' + e.message, false));
+}
+
+function quickMessage() {
+  const text = prompt('Message text:');
+  if (text) post('/print/message', { text, title: 'MESSAGE' });
+}
+
+function quickReceipt() {
+  post('/print/receipt', { items: [{ name: 'Test Item', qty: 1, price: 0.00 }] });
+}
+</script>
+
+</body>
+</html>
