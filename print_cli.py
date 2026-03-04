@@ -12,11 +12,14 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
+from datetime import datetime
 from printer_core import load_config, connect, Formatter
 import templates
 from image_printer import process_image, _prepare, _apply_blur, _dither_floyd, _dither_bayer, _dither_halftone
 from image_slicer import slice_vertical, slice_horizontal
+from portrait_pipeline import run_pipeline
 
 
 def cmd_test(args, config):
@@ -108,6 +111,10 @@ def cmd_image(args, config):
     else:
         p = connect(config, dummy=False)
         fmt = Formatter(p, config["printer"]["paper_width"])
+        label = os.path.basename(args.path)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        fmt.bold(f"{label}  {timestamp}")
+        fmt.blank()
         fmt.p.image(img)
         fmt.feed()
         fmt.cut()
@@ -163,6 +170,25 @@ def cmd_slice(args, config):
     fmt.feed()
     fmt.cut()
     print(f"[OK] {args.strips} {args.direction} strips printed: {args.path}")
+
+
+def cmd_portrait(args, config):
+    """Run the portrait-to-statue pipeline."""
+    p = connect(config, dummy=args.dummy)
+    save_dir = os.path.dirname(args.paths[0]) or "."
+    run_pipeline(
+        args.paths, config, p,
+        dummy=args.dummy,
+        save_dir=save_dir,
+        skip_selection=args.skip_selection,
+        skip_transform=args.skip_transform,
+        blur=args.blur,
+        dither_mode=args.mode,
+    )
+    if args.dummy:
+        print(f"[DUMMY] Portrait previews saved to {save_dir}")
+    else:
+        print("[OK] Portrait pipeline complete")
 
 
 def cmd_markdown(args, config):
@@ -235,6 +261,17 @@ def main():
     p_slc.add_argument("--sharpness", type=float, help="Sharpness multiplier")
     p_slc.add_argument("--blur", type=float, help="Gaussian blur radius (0=off)")
 
+    # portrait
+    p_port = sub.add_parser("portrait", help="Portrait-to-Roman-statue pipeline")
+    p_port.add_argument("paths", nargs="+", help="Image file(s)")
+    p_port.add_argument("--skip-selection", action="store_true",
+                        help="Skip AI photo selection, use first image")
+    p_port.add_argument("--skip-transform", action="store_true",
+                        help="Skip style transfer (print original with dithering)")
+    p_port.add_argument("--blur", type=float, help="Gaussian blur radius (default 10)")
+    p_port.add_argument("--mode", choices=["bayer", "floyd", "halftone"],
+                        help="Dither mode (default: bayer)")
+
     # markdown
     p_md = sub.add_parser("md", help="Print markdown text or file")
     p_md.add_argument("text", nargs="?", help="Inline markdown text")
@@ -253,6 +290,7 @@ def main():
         "image": cmd_image,
         "slice": cmd_slice,
         "dictionary": cmd_dictionary,
+        "portrait": cmd_portrait,
         "md": cmd_markdown,
     }
     cmds[args.command](args, config)

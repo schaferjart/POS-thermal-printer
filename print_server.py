@@ -28,6 +28,7 @@ Send jobs via HTTP POST:
         -d '{"word":"Ephemeral","definition":"Lasting for a very short time.","citations":["All fame is ephemeral."]}'
 """
 
+import io
 import os
 import sys
 import socket
@@ -40,6 +41,7 @@ from zeroconf import ServiceInfo, Zeroconf
 from printer_core import load_config, connect, Formatter
 import templates
 from image_printer import process_image
+from portrait_pipeline import run_pipeline, transform_to_statue
 
 app = Flask(__name__)
 CORS(app)
@@ -178,6 +180,91 @@ def print_markdown():
     data = request.get_json(force=True)
     with_retry(lambda fmt: templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True), style=data.get("style", "dictionary")))
     return jsonify({"status": "ok", "template": "markdown"})
+
+
+@app.route("/portrait/capture", methods=["POST"])
+def portrait_capture():
+    """
+    Receive one or more photos, run the full portrait pipeline
+    (select best → style transfer → print at multiple zoom levels).
+
+    Accepts multipart/form-data with one or more 'file' fields.
+    """
+    files = request.files.getlist("file")
+    if not files:
+        return jsonify({"error": "No files uploaded"}), 400
+
+    tmp_paths = []
+    try:
+        for uploaded in files:
+            if not uploaded.filename:
+                continue
+            suffix = os.path.splitext(uploaded.filename)[1] or ".jpg"
+            tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+            uploaded.save(tmp)
+            tmp.close()
+            tmp_paths.append(tmp.name)
+
+        if not tmp_paths:
+            return jsonify({"error": "No valid files"}), 400
+
+        skip_selection = request.form.get("skip_selection", "").lower() in ("1", "true")
+        blur = request.form.get("blur")
+        mode = request.form.get("mode")
+
+        selected, _ = run_pipeline(
+            tmp_paths, _config, _printer,
+            dummy=_dummy,
+            skip_selection=skip_selection,
+            blur=float(blur) if blur else None,
+            dither_mode=mode,
+        )
+
+        return jsonify({
+            "status": "ok",
+            "template": "portrait",
+            "photos_received": len(tmp_paths),
+            "selected": os.path.basename(selected),
+        })
+    finally:
+        for p in tmp_paths:
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+
+
+@app.route("/portrait/transform", methods=["POST"])
+def portrait_transform():
+    """
+    Transform a single image to Roman statue aesthetic (no printing).
+    Returns the transformed image as PNG.
+
+    Accepts multipart/form-data with a 'file' field.
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    uploaded = request.files["file"]
+    if not uploaded.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    suffix = os.path.splitext(uploaded.filename)[1] or ".jpg"
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    try:
+        uploaded.save(tmp)
+        tmp.close()
+
+        img = transform_to_statue(tmp.name, _config)
+
+        # Return as PNG
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+
+        from flask import send_file
+        return send_file(buf, mimetype="image/png", download_name="portrait_statue.png")
+    finally:
+        os.unlink(tmp.name)
 
 
 @app.route("/health", methods=["GET"])
