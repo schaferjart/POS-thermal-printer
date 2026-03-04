@@ -262,6 +262,43 @@ echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
 sudo chattr +i /etc/resolv.conf   # lock so dhcpcd can't overwrite
 ```
 
+### Auto-Start on Boot
+
+Create a systemd service so the print server starts automatically when the Pi powers on:
+
+```bash
+sudo nano /etc/systemd/system/pos-printer.service
+```
+
+```ini
+[Unit]
+Description=POS Thermal Print Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/stoffel/POS-thermal-printer
+ExecStartPre=/bin/bash -c 'killall wpa_supplicant 2>/dev/null; wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf; dhcpcd wlan0; sleep 5'
+ExecStart=/home/stoffel/POS-thermal-printer/venv/bin/python3 print_server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable pos-printer.service
+sudo systemctl start pos-printer.service
+```
+
+The Pi will now connect to WiFi and start the print server on every boot. Check status with `sudo systemctl status pos-printer.service`.
+
 ### Sending Print Jobs Over the Network
 
 Once the server is running, any device on the same network can print:
