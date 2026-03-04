@@ -172,13 +172,106 @@ config.yaml        Printer config + font style definitions
 fonts/             Font files
 ```
 
-## Raspberry Pi
+## Raspberry Pi Deployment
 
-Same setup works on Raspberry Pi. Add a udev rule for USB permissions:
+Tested on Raspberry Pi 3 with Debian Bookworm. The Pi runs the print server headlessly on the network — any device on the same WiFi can send print jobs.
+
+### Initial Setup
 
 ```bash
-# Find your printer's IDs with lsusb
+# Install system dependencies
+sudo apt update && sudo apt install -y python3-venv python3-pip git libusb-1.0-0-dev
+
+# Clone and set up
+git clone https://github.com/schaferjart/POS-thermal-printer.git
+cd POS-thermal-printer
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### USB Permissions
+
+The printer needs root access by default. Either run with sudo:
+
+```bash
+sudo ./venv/bin/python3 print_server.py
+```
+
+Or add a udev rule for unprivileged access:
+
+```bash
 sudo tee /etc/udev/rules.d/99-escpos.rules <<< \
   'SUBSYSTEM=="usb", ATTRS{idVendor}=="1fc9", ATTRS{idProduct}=="2016", MODE="0666"'
 sudo udevadm control --reload
+# Unplug and replug the printer
+```
+
+### WiFi: Connecting to eduroam (WPA2-Enterprise)
+
+The Pi 3's built-in WiFi works with eduroam but needs manual wpa_supplicant configuration since it uses WPA2-Enterprise (PEAP/MSCHAPv2).
+
+**1. Disable any access point mode** (if previously configured):
+
+```bash
+sudo systemctl stop hostapd
+sudo systemctl disable hostapd
+```
+
+**2. Remove any static IP on wlan0** — check `/etc/dhcpcd.conf` for lines like `interface wlan0`, `static ip_address=...`, or `nohook wpa_supplicant` and delete them.
+
+**3. Configure wpa_supplicant** (`sudo nano /etc/wpa_supplicant/wpa_supplicant.conf`):
+
+```
+ctrl_interface=DIR=/var/run/wpa_supplicant
+update_config=1
+country=CH
+
+network={
+    ssid="eduroam"
+    key_mgmt=WPA-EAP
+    eap=PEAP
+    phase2="auth=MSCHAPV2"
+    identity="user@student-net.ethz.ch"
+    password="your_password"
+    priority=20
+}
+
+network={
+    ssid="HomeWiFi"
+    psk="home_password"
+    key_mgmt=WPA-PSK
+    priority=5
+}
+```
+
+Multiple network blocks are supported — the Pi connects to whichever is available, preferring higher priority values.
+
+**4. Start wpa_supplicant manually** (the systemd service doesn't attach to wlan0 by default on Bookworm):
+
+```bash
+sudo killall wpa_supplicant
+sudo wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf
+sudo dhcpcd wlan0
+```
+
+**5. Fix DNS** (eduroam may not set nameservers correctly):
+
+```bash
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+sudo chattr +i /etc/resolv.conf   # lock so dhcpcd can't overwrite
+```
+
+### Sending Print Jobs Over the Network
+
+Once the server is running, any device on the same network can print:
+
+```bash
+# From any machine on the network
+curl -X POST http://<pi-ip>:9100/print/markdown \
+  -H "Content-Type: application/json" \
+  -d '{"text": "# Hello\n\nPrinted from the network!", "show_date": false}'
+
+# Health check
+curl http://<pi-ip>:9100/health
 ```
