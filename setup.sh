@@ -48,7 +48,7 @@ fi
 
 # --- Python virtual environment + dependencies ---
 
-VENV="$SCRIPT_DIR/.venv"
+VENV="$SCRIPT_DIR/venv"
 if [ ! -d "$VENV" ]; then
     echo "==> Creating virtual environment..."
     python3 -m venv "$VENV"
@@ -74,14 +74,20 @@ if [ "$OS" = "Linux" ]; then
 [Unit]
 Description=POS Thermal Printer Server
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple
 User=$(whoami)
 WorkingDirectory=$SCRIPT_DIR
 ExecStart=$VENV/bin/python $SCRIPT_DIR/print_server.py
-Restart=always
-RestartSec=5
+Restart=on-failure
+RestartSec=10
+MemoryMax=400M
+TasksMax=100
+KillMode=mixed
+TimeoutStopSec=15
 
 [Install]
 WantedBy=multi-user.target

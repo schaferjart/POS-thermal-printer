@@ -19,7 +19,11 @@ from printer_core import load_config, connect, Formatter
 import templates
 from image_printer import process_image, _prepare, _apply_blur, _dither_floyd, _dither_bayer, _dither_halftone
 from image_slicer import slice_vertical, slice_horizontal
-from portrait_pipeline import run_pipeline
+try:
+    from portrait_pipeline import run_pipeline
+    _has_portrait = True
+except ImportError:
+    _has_portrait = False
 
 
 def cmd_test(args, config):
@@ -174,6 +178,10 @@ def cmd_slice(args, config):
 
 def cmd_portrait(args, config):
     """Run the portrait-to-statue pipeline."""
+    if not _has_portrait:
+        print("Error: portrait pipeline requires numpy and mediapipe. Install with:")
+        print("  pip install numpy mediapipe")
+        sys.exit(1)
     p = connect(config, dummy=args.dummy)
     save_dir = os.path.dirname(args.paths[0]) or "."
     run_pipeline(
