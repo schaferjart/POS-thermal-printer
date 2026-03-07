@@ -41,7 +41,11 @@ from zeroconf import ServiceInfo, Zeroconf
 from printer_core import load_config, connect, Formatter
 import templates
 from image_printer import process_image
-from portrait_pipeline import run_pipeline, transform_to_statue
+try:
+    from portrait_pipeline import run_pipeline, transform_to_statue
+    _has_portrait = True
+except ImportError:
+    _has_portrait = False
 
 app = Flask(__name__)
 CORS(app)
@@ -184,6 +188,8 @@ def print_markdown():
 
 @app.route("/portrait/capture", methods=["POST"])
 def portrait_capture():
+    if not _has_portrait:
+        return jsonify({"error": "Portrait pipeline unavailable — install numpy and mediapipe"}), 501
     """
     Receive one or more photos, run the full portrait pipeline
     (select best → style transfer → print at multiple zoom levels).
@@ -236,6 +242,8 @@ def portrait_capture():
 
 @app.route("/portrait/transform", methods=["POST"])
 def portrait_transform():
+    if not _has_portrait:
+        return jsonify({"error": "Portrait pipeline unavailable — install numpy and mediapipe"}), 501
     """
     Transform a single image to Roman statue aesthetic (no printing).
     Returns the transformed image as PNG.
