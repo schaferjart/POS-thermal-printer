@@ -41,7 +41,7 @@ import logging
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from zeroconf import ServiceInfo, Zeroconf
-from printer_core import load_config, connect, Formatter
+from printer_core import load_config, connect, Formatter, validate_config
 import templates
 from image_printer import process_image
 try:
@@ -347,6 +347,7 @@ def main():
     args = parser.parse_args()
 
     _config = load_config(args.config)
+    validate_config(_config)  # fail fast if config incomplete
     _dummy = args.dummy
 
     if _dummy:
