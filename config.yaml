@@ -16,6 +16,7 @@ printer:
 server:
   host: "0.0.0.0"
   port: 9100
+  # api_key: "your-secret-key-here"  # Uncomment to enable auth
 
 # Default receipt template
 template:

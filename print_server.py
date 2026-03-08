@@ -32,6 +32,7 @@ import io
 import os
 import sys
 import time
+import hmac
 import signal
 import socket
 import atexit
@@ -39,6 +40,7 @@ import argparse
 import tempfile
 import threading
 import logging
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from zeroconf import ServiceInfo, Zeroconf
@@ -61,6 +63,10 @@ _printer = None
 _dummy = False
 _zeroconf = None
 _print_lock = threading.Lock()
+_server_start_time = None
+_last_print_time = None
+
+_PUBLIC_ENDPOINTS = frozenset({"health", "index", "static"})
 
 logger = logging.getLogger(__name__)
 
@@ -105,19 +111,35 @@ def error_response(message, field=None, status=400):
     return jsonify(body), status
 
 
+@app.before_request
+def check_api_key():
+    """Reject requests without a valid API key when api_key is configured."""
+    api_key = _config.get("server", {}).get("api_key")
+    if not api_key:
+        return
+    if request.endpoint in _PUBLIC_ENDPOINTS:
+        return
+    provided = request.headers.get("X-Print-Key", "")
+    if not hmac.compare_digest(provided, api_key):
+        return error_response("Invalid or missing API key", status=401)
+
+
 def with_retry(fn):
     """Run a print function with mutex lock and reconnect on failure."""
+    global _last_print_time
     with _print_lock:
         try:
             fmt = get_formatter()
             fmt.p.hw("INIT")  # ESC@ reset printer state
             fn(fmt)
+            _last_print_time = datetime.now(timezone.utc).isoformat()
         except Exception as e:
             logger.warning("Print failed (%s), reconnecting...", e)
             try:
                 fmt = reconnect()
                 fmt.p.hw("INIT")
                 fn(fmt)
+                _last_print_time = datetime.now(timezone.utc).isoformat()
             except Exception as e2:
                 logger.error("Retry also failed: %s", e2)
                 raise
@@ -336,7 +358,20 @@ def portrait_transform():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "running", "dummy": _dummy})
+    now = time.time()
+    result = {
+        "status": "running",
+        "dummy": _dummy,
+        "uptime_seconds": round(now - _server_start_time, 1) if _server_start_time else 0,
+        "last_print": _last_print_time,
+    }
+    try:
+        result["printer"] = "connected" if _printer.is_online() else "disconnected"
+    except NotImplementedError:
+        result["printer"] = "dummy"
+    except Exception:
+        result["printer"] = "disconnected"
+    return jsonify(result)
 
 
 @app.route("/", methods=["GET"])
@@ -400,7 +435,7 @@ def graceful_shutdown(signum, frame):
 
 
 def main():
-    global _config, _printer, _dummy
+    global _config, _printer, _dummy, _server_start_time
 
     parser = argparse.ArgumentParser(description="Thermal printer HTTP server")
     parser.add_argument("--dummy", action="store_true", help="Run without real printer")
@@ -409,6 +444,7 @@ def main():
 
     _config = load_config(args.config)
     validate_config(_config)  # fail fast if config incomplete
+    _server_start_time = time.time()
     _dummy = args.dummy
 
     if _dummy:
