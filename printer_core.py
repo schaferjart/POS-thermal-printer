@@ -62,20 +62,26 @@ class Formatter:
     def title(self, text):
         """Large centered bold text."""
         self.p.set(align="center", bold=True, double_height=True, double_width=True)
-        self.p.text(f"{text}\n")
-        self.p.set(align="left", bold=False, double_height=False, double_width=False)
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(align="left", bold=False, double_height=False, double_width=False)
 
     def subtitle(self, text):
         """Centered bold text, normal size."""
         self.p.set(align="center", bold=True)
-        self.p.text(f"{text}\n")
-        self.p.set(align="left", bold=False)
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(align="left", bold=False)
 
     def center(self, text):
         """Centered normal text."""
         self.p.set(align="center")
-        self.p.text(f"{text}\n")
-        self.p.set(align="left")
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(align="left")
 
     def text(self, text):
         """Left-aligned normal text."""
@@ -85,8 +91,10 @@ class Formatter:
     def bold(self, text):
         """Left-aligned bold text."""
         self.p.set(bold=True)
-        self.p.text(f"{text}\n")
-        self.p.set(bold=False)
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(bold=False)
 
     def wrap(self, text, indent=0):
         """Word-wrapped left-aligned text that respects paper width."""
@@ -97,20 +105,34 @@ class Formatter:
     def italic_text(self, text):
         """Underlined text (thermal printers have no italic — underline is the convention)."""
         self.p.set(underline=1)
-        self.p.text(f"{text}\n")
-        self.p.set(underline=0)
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(underline=0)
 
     def small(self, text):
         """Smaller text using Font B."""
         self.p.set(font="b")
-        self.p.text(f"{text}\n")
-        self.p.set(font="a")
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(font="a")
+
+    def font_b_text(self, text):
+        """Print text in smaller Font B with normal size, then reset to Font A."""
+        self.p.set(font="b", normal_textsize=True)
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(font="a")
 
     def right(self, text):
         """Right-aligned text."""
         self.p.set(align="right")
-        self.p.text(f"{text}\n")
-        self.p.set(align="left")
+        try:
+            self.p.text(f"{text}\n")
+        finally:
+            self.p.set(align="left")
 
     def line(self, char="-"):
         """Print a horizontal separator line."""
@@ -133,8 +155,10 @@ class Formatter:
     def left_right_bold(self, left, right):
         """Same as left_right but bold."""
         self.p.set(bold=True)
-        self.left_right(left, right)
-        self.p.set(bold=False)
+        try:
+            self.left_right(left, right)
+        finally:
+            self.p.set(bold=False)
 
     def columns(self, cols, widths=None, aligns=None):
         """
@@ -166,13 +190,17 @@ class Formatter:
 
     def qr(self, data, size=4):
         self.p.set(align="center")
-        self.p.qr(data, size=size)
-        self.p.set(align="left")
+        try:
+            self.p.qr(data, size=size)
+        finally:
+            self.p.set(align="left")
 
     def barcode(self, data, bc_type="CODE128"):
         self.p.set(align="center")
-        self.p.barcode(data, bc_type)
-        self.p.set(align="left")
+        try:
+            self.p.barcode(data, bc_type)
+        finally:
+            self.p.set(align="left")
 
     def cut(self):
         self.p.cut()
