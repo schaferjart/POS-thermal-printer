@@ -1,6 +1,11 @@
-"""Integration tests for print_server.py input validation, error format, and ESC@ init."""
+"""Integration tests for print_server.py input validation, error format, ESC@ init,
+graceful shutdown, and portrait pipeline config safety."""
 
+import copy
 import json
+from unittest.mock import patch, MagicMock
+
+import pytest
 
 
 class TestValidationMissingFields:
@@ -131,3 +136,81 @@ class TestNoRawEscPosInServer:
             if "_raw(" in line and not line.strip().startswith("#")
         ]
         assert raw_calls == [], f"Found _raw() calls in print_server.py: {raw_calls}"
+
+
+class TestGracefulShutdown:
+    """Verify graceful_shutdown handler exists and is wired to SIGTERM/SIGINT."""
+
+    def test_graceful_shutdown_is_callable(self):
+        import print_server
+        assert hasattr(print_server, "graceful_shutdown")
+        assert callable(print_server.graceful_shutdown)
+
+    def test_sigterm_registration_in_source(self):
+        """Verify signal.signal(signal.SIGTERM, graceful_shutdown) appears in main()."""
+        with open("print_server.py") as f:
+            source = f.read()
+        assert "signal.signal(signal.SIGTERM, graceful_shutdown)" in source
+        assert "signal.signal(signal.SIGINT, graceful_shutdown)" in source
+
+    def test_shutdown_does_not_acquire_print_lock(self):
+        """Signal handler must not acquire _print_lock (deadlock risk)."""
+        with open("print_server.py") as f:
+            source = f.read()
+        # Extract the graceful_shutdown function body
+        in_func = False
+        func_lines = []
+        for line in source.split("\n"):
+            if "def graceful_shutdown" in line:
+                in_func = True
+                continue
+            elif in_func:
+                if line and not line[0].isspace() and line.strip():
+                    break  # next top-level def/class
+                func_lines.append(line)
+        func_body = "\n".join(func_lines)
+        assert "_print_lock" not in func_body, \
+            "graceful_shutdown must not reference _print_lock (deadlock risk)"
+
+
+class TestPortraitConfigNotMutated:
+    """Verify run_pipeline does not mutate the shared config dict."""
+
+    def test_config_unchanged_after_run_pipeline(self):
+        """After calling run_pipeline with blur/dither_mode overrides, config is unchanged."""
+        pytest.importorskip("numpy", reason="portrait_pipeline requires numpy")
+        portrait_pipeline = __import__("portrait_pipeline")
+
+        config = {
+            "portrait": {"blur": 10, "dither_mode": "bayer"},
+            "printer": {"paper_width": 48},
+            "halftone": {"paper_px": 576},
+        }
+        original = copy.deepcopy(config)
+
+        mock_printer = MagicMock()
+
+        with patch.object(portrait_pipeline, "select_best_photo") as mock_select, \
+             patch.object(portrait_pipeline, "open_image") as mock_open, \
+             patch.object(portrait_pipeline, "print_portrait") as mock_print:
+
+            mock_open.return_value = MagicMock()
+
+            portrait_pipeline.run_pipeline(
+                ["fake_image.jpg"], config, mock_printer,
+                dummy=True,
+                skip_selection=True,
+                skip_transform=True,
+                blur=5.0,
+                dither_mode="floyd",
+            )
+
+        assert config == original, \
+            f"run_pipeline mutated config! Before: {original}, After: {config}"
+
+    def test_no_config_setdefault_in_run_pipeline(self):
+        """Static check: config.setdefault should not appear in portrait_pipeline.py."""
+        with open("portrait_pipeline.py") as f:
+            source = f.read()
+        assert "config.setdefault" not in source, \
+            "portrait_pipeline.py still contains config.setdefault (config mutation)"
