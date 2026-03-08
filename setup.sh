@@ -26,7 +26,14 @@ echo "==> Project dir: $SCRIPT_DIR"
 if [ "$OS" = "Linux" ]; then
     echo "==> Installing system packages..."
     sudo apt-get update -qq
-    sudo apt-get install -y python3 python3-pip python3-venv libusb-1.0-0-dev
+    sudo apt-get install -y python3 python3-pip python3-venv libusb-1.0-0-dev fonts-dejavu-core locales
+
+    # Generate UTF-8 locale to avoid locale warnings
+    if ! locale -a 2>/dev/null | grep -q "en_US.utf8"; then
+        echo "==> Generating en_US.UTF-8 locale..."
+        sudo sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen
+        sudo locale-gen en_US.UTF-8
+    fi
 
     # udev rule so the printer is accessible without root
     UDEV_RULE='/etc/udev/rules.d/99-thermal-printer.rules'

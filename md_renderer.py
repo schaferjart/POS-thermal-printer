@@ -92,9 +92,31 @@ def _merge_char_row(char_row):
 
 
 def _load_font(path, size, index=0):
-    """Load a font, supporting both .ttf and .ttc (collection) files."""
+    """Load a font, supporting both .ttf and .ttc (collection) files.
+    Falls back to Linux system fonts when macOS fonts aren't available."""
     resolved = _resolve_font_path(path)
-    return ImageFont.truetype(resolved, size=size, index=index)
+    if os.path.exists(resolved):
+        return ImageFont.truetype(resolved, size=size, index=index)
+
+    # Fallback: map macOS system fonts to Linux equivalents
+    basename = os.path.basename(resolved)
+    if basename == "HelveticaNeue.ttc":
+        # Bold indices (1) → DejaVuSans-Bold, others → DejaVuSans (regular)
+        bold_indices = {1}
+        linux_font = "DejaVuSans-Bold.ttf" if index in bold_indices else "DejaVuSans.ttf"
+        for search_dir in ("/usr/share/fonts/truetype/dejavu",
+                           "/usr/share/fonts/TTF",
+                           "/usr/share/fonts/dejavu-sans-fonts"):
+            candidate = os.path.join(search_dir, linux_font)
+            if os.path.exists(candidate):
+                return ImageFont.truetype(candidate, size=size)
+
+    # Last resort: bundled fonts
+    fallback = _FONT_BOLD if index in (1,) else _FONT_THIN
+    if os.path.exists(fallback):
+        return ImageFont.truetype(fallback, size=size)
+
+    raise FileNotFoundError(f"Font not found: {resolved} (no fallback available)")
 
 
 # Inline patterns: **bold**, *italic*, ~~strikethrough~~, `code`
