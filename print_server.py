@@ -52,6 +52,7 @@ except ImportError:
 
 app = Flask(__name__)
 CORS(app)
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
 
 # Globals set at startup
 _config = None
@@ -82,15 +83,40 @@ def reconnect():
     return Formatter(_printer, width)
 
 
+def _require_fields(data, *fields):
+    """Validate JSON body has required fields.
+    Returns (data, None) on success, or (None, (error_msg, field_name)) on failure."""
+    if data is None:
+        return None, ("Invalid or missing JSON body", None)
+    if not isinstance(data, dict):
+        return None, ("Request body must be a JSON object", None)
+    for field in fields:
+        if field not in data:
+            return None, (f"Missing required field '{field}'", field)
+    return data, None
+
+
+def error_response(message, field=None, status=400):
+    """Return a consistent JSON error response."""
+    body = {"error": message}
+    if field is not None:
+        body["field"] = field
+    return jsonify(body), status
+
+
 def with_retry(fn):
     """Run a print function with mutex lock and reconnect on failure."""
     with _print_lock:
         try:
-            fn(get_formatter())
+            fmt = get_formatter()
+            fmt.p.hw("INIT")  # ESC@ reset printer state
+            fn(fmt)
         except Exception as e:
             logger.warning("Print failed (%s), reconnecting...", e)
             try:
-                fn(reconnect())
+                fmt = reconnect()
+                fmt.p.hw("INIT")
+                fn(fmt)
             except Exception as e2:
                 logger.error("Retry also failed: %s", e2)
                 raise
@@ -98,28 +124,40 @@ def with_retry(fn):
 
 @app.route("/print/receipt", methods=["POST"])
 def print_receipt():
-    data = request.get_json(force=True)
+    data = request.get_json(force=True, silent=True)
+    data, err = _require_fields(data, "items")
+    if err:
+        return error_response(err[0], err[1])
     with_retry(lambda fmt: templates.receipt(fmt, data, _config))
     return jsonify({"status": "ok", "template": "receipt"})
 
 
 @app.route("/print/message", methods=["POST"])
 def print_message():
-    data = request.get_json(force=True)
+    data = request.get_json(force=True, silent=True)
+    data, err = _require_fields(data, "text")
+    if err:
+        return error_response(err[0], err[1])
     with_retry(lambda fmt: templates.simple_message(fmt, data["text"], data.get("title")))
     return jsonify({"status": "ok", "template": "message"})
 
 
 @app.route("/print/label", methods=["POST"])
 def print_label():
-    data = request.get_json(force=True)
+    data = request.get_json(force=True, silent=True)
+    data, err = _require_fields(data, "heading")
+    if err:
+        return error_response(err[0], err[1])
     with_retry(lambda fmt: templates.label(fmt, data["heading"], data.get("lines", [])))
     return jsonify({"status": "ok", "template": "label"})
 
 
 @app.route("/print/list", methods=["POST"])
 def print_list():
-    data = request.get_json(force=True)
+    data = request.get_json(force=True, silent=True)
+    data, err = _require_fields(data, "title", "rows")
+    if err:
+        return error_response(err[0], err[1])
     rows = [tuple(r) for r in data["rows"]]
     with_retry(lambda fmt: templates.two_column_list(fmt, data["title"], rows))
     return jsonify({"status": "ok", "template": "list"})
@@ -127,7 +165,10 @@ def print_list():
 
 @app.route("/print/dictionary", methods=["POST"])
 def print_dictionary():
-    data = request.get_json(force=True)
+    data = request.get_json(force=True, silent=True)
+    data, err = _require_fields(data, "word", "definition")
+    if err:
+        return error_response(err[0], err[1])
     with_retry(lambda fmt: templates.dictionary_entry(fmt, data, _config))
     return jsonify({"status": "ok", "template": "dictionary"})
 
@@ -147,10 +188,10 @@ def print_image():
         blur: float (optional)
     """
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return error_response("No file uploaded", "file")
     uploaded = request.files["file"]
     if not uploaded.filename:
-        return jsonify({"error": "Empty filename"}), 400
+        return error_response("Empty filename", "file")
 
     suffix = os.path.splitext(uploaded.filename)[1] or ".png"
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
@@ -180,10 +221,7 @@ def print_image():
         label = f"{mode_name} + BLUR {blur_val}" if blur_val else mode_name
 
         def do_print(fmt):
-            fmt.p._raw(b'\x1b\x21\x01')  # ESC ! 0x01: Font B
-            fmt.p._raw(b'\x1d\x21\x00')  # GS ! 0x00: 1x width, 1x height
-            fmt.p.text(label + '\n')
-            fmt.p._raw(b'\x1b\x21\x00')  # reset to Font A normal
+            fmt.font_b_text(label)
             fmt.blank()
             fmt.p.image(img)
             fmt.feed()
@@ -198,7 +236,10 @@ def print_image():
 
 @app.route("/print/markdown", methods=["POST"])
 def print_markdown():
-    data = request.get_json(force=True)
+    data = request.get_json(force=True, silent=True)
+    data, err = _require_fields(data, "text")
+    if err:
+        return error_response(err[0], err[1])
     with_retry(lambda fmt: templates.markdown(fmt, data["text"], _config, show_date=data.get("show_date", True), style=data.get("style", "dictionary")))
     return jsonify({"status": "ok", "template": "markdown"})
 
@@ -215,7 +256,7 @@ def portrait_capture():
     """
     files = request.files.getlist("file")
     if not files:
-        return jsonify({"error": "No files uploaded"}), 400
+        return error_response("No files uploaded", "file")
 
     tmp_paths = []
     try:
@@ -229,7 +270,7 @@ def portrait_capture():
             tmp_paths.append(tmp.name)
 
         if not tmp_paths:
-            return jsonify({"error": "No valid files"}), 400
+            return error_response("No valid files", "file")
 
         skip_selection = request.form.get("skip_selection", "").lower() in ("1", "true")
         blur = request.form.get("blur")
@@ -268,10 +309,10 @@ def portrait_transform():
     Accepts multipart/form-data with a 'file' field.
     """
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return error_response("No file uploaded", "file")
     uploaded = request.files["file"]
     if not uploaded.filename:
-        return jsonify({"error": "Empty filename"}), 400
+        return error_response("Empty filename", "file")
 
     suffix = os.path.splitext(uploaded.filename)[1] or ".jpg"
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
