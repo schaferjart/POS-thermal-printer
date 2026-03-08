@@ -18,8 +18,9 @@ import os
 from datetime import datetime
 import numpy as np
 import requests
-from PIL import Image, ImageOps
+from PIL import Image
 
+from helpers import open_image
 from image_printer import _prepare, _apply_blur, _dither_bayer, _dither_floyd, _dither_halftone
 
 
@@ -103,12 +104,7 @@ def transform_to_statue(image_path: str, config: dict) -> Image.Image:
         raise RuntimeError("OPENROUTER_API_KEY not set")
 
     # Load and prepare image
-    img = Image.open(image_path)
-    img = ImageOps.exif_transpose(img)
-    if img.mode in ("RGBA", "LA", "PA"):
-        bg = Image.new("RGB", img.size, (255, 255, 255))
-        bg.paste(img, mask=img.split()[-1])
-        img = bg
+    img = open_image(image_path)
 
     # Encode as PNG base64
     buf = io.BytesIO()
@@ -410,12 +406,7 @@ def run_pipeline(image_paths: list[str], config: dict, printer,
 
     # Stage B: Style transfer via n8n
     if skip_transform:
-        image = Image.open(selected)
-        image = ImageOps.exif_transpose(image)
-        if image.mode in ("RGBA", "LA", "PA"):
-            bg = Image.new("RGB", image.size, (255, 255, 255))
-            bg.paste(image, mask=image.split()[-1])
-            image = bg
+        image = open_image(selected)
         print("[PORTRAIT] Skipping style transfer")
     else:
         image = transform_to_statue(selected, config)

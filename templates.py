@@ -2,16 +2,10 @@
 Print templates — reusable layouts that accept structured data.
 """
 
-import os
-import textwrap
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from printer_core import Formatter
-
-# --- Font paths ---
-_FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
-_FONT_THIN = os.path.join(_FONTS_DIR, "Burra-Thin.ttf")
-_FONT_BOLD = os.path.join(_FONTS_DIR, "Burra-Bold.ttf")
+from helpers import resolve_font_path, wrap_text, FONT_THIN, FONT_BOLD
 
 
 def receipt(fmt: Formatter, data: dict, config: dict):
@@ -131,13 +125,6 @@ def two_column_list(fmt: Formatter, title_text: str, rows: list[tuple[str, str]]
     fmt.cut()
 
 
-def _resolve_font_path(path):
-    """Resolve font path relative to project root."""
-    if os.path.isabs(path):
-        return path
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
-
-
 def _render_dictionary_image(data: dict, config: dict = None):
     """
     Render a dictionary entry as a black-on-white image.
@@ -160,38 +147,21 @@ def _render_dictionary_image(data: dict, config: dict = None):
     usable = paper_px - margin * 2
 
     # Load fonts from config paths (fall back to bundled Burra)
-    word_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_word", _FONT_BOLD)), sz_word)
-    body_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_body", _FONT_THIN)), sz_body)
-    cite_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_cite", _FONT_THIN)), sz_cite)
-    date_font = ImageFont.truetype(_resolve_font_path(cfg.get("font_date", _FONT_THIN)), sz_date)
+    word_font = ImageFont.truetype(resolve_font_path(cfg.get("font_word", FONT_BOLD)), sz_word)
+    body_font = ImageFont.truetype(resolve_font_path(cfg.get("font_body", FONT_THIN)), sz_body)
+    cite_font = ImageFont.truetype(resolve_font_path(cfg.get("font_cite", FONT_THIN)), sz_cite)
+    date_font = ImageFont.truetype(resolve_font_path(cfg.get("font_date", FONT_THIN)), sz_date)
 
     # --- Pre-calculate wrapped text ---
     scratch = ImageDraw.Draw(Image.new("1", (1, 1)))
 
-    def wrap_text(text, font, max_width):
-        """Word-wrap text to fit within max_width pixels."""
-        words = text.split()
-        lines = []
-        current = ""
-        for word in words:
-            test = f"{current} {word}".strip()
-            bbox = scratch.textbbox((0, 0), test, font=font)
-            if bbox[2] > max_width and current:
-                lines.append(current)
-                current = word
-            else:
-                current = test
-        if current:
-            lines.append(current)
-        return lines
-
     # Prepare all text blocks
     word_lines = [data["word"]]
-    def_lines = wrap_text(data["definition"], body_font, usable)
+    def_lines = wrap_text(data["definition"], body_font, usable, scratch)
 
     cite_blocks = []
     for cite in data.get("citations", []):
-        wrapped = wrap_text(f"- {cite}", cite_font, usable - 10)
+        wrapped = wrap_text(f"- {cite}", cite_font, usable - 10, scratch)
         for i in range(1, len(wrapped)):
             wrapped[i] = f"  {wrapped[i]}"
         cite_blocks.append(wrapped)

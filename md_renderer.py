@@ -20,16 +20,7 @@ import os
 import re
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
-
-_FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
-_FONT_THIN = os.path.join(_FONTS_DIR, "Burra-Thin.ttf")
-_FONT_BOLD = os.path.join(_FONTS_DIR, "Burra-Bold.ttf")
-
-
-def _resolve_font_path(path):
-    if os.path.isabs(path):
-        return path
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
+from helpers import resolve_font_path, wrap_text as _helpers_wrap_text, FONT_THIN, FONT_BOLD
 
 
 def _hard_wrap(text, font, max_w, text_width_fn):
@@ -94,7 +85,7 @@ def _merge_char_row(char_row):
 def _load_font(path, size, index=0):
     """Load a font, supporting both .ttf and .ttc (collection) files.
     Falls back to Linux system fonts when macOS fonts aren't available."""
-    resolved = _resolve_font_path(path)
+    resolved = resolve_font_path(path)
     if os.path.exists(resolved):
         return ImageFont.truetype(resolved, size=size, index=index)
 
@@ -113,7 +104,7 @@ def _load_font(path, size, index=0):
                 return ImageFont.truetype(candidate, size=size)
 
     # Last resort: bundled fonts
-    fallback = _FONT_BOLD if is_bold else _FONT_THIN
+    fallback = FONT_BOLD if is_bold else FONT_THIN
     if os.path.exists(fallback):
         print(f"[md_renderer] Font fallback: {resolved} → {fallback}")
         return ImageFont.truetype(fallback, size=size)
@@ -208,12 +199,12 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
     usable = paper_px - margin * 2
 
     # Load fonts (with .ttc index support)
-    font_h1 = _load_font(cfg.get("font_word", _FONT_BOLD), sz_h1, cfg.get("font_word_index", 0))
-    font_h2 = _load_font(cfg.get("font_word", _FONT_BOLD), sz_h2, cfg.get("font_word_index", 0))
-    font_body = _load_font(cfg.get("font_body", _FONT_THIN), sz_body, cfg.get("font_body_index", 0))
-    font_bold = _load_font(cfg.get("font_bold", cfg.get("font_word", _FONT_BOLD)), sz_body, cfg.get("font_bold_index", cfg.get("font_word_index", 0)))
-    font_cite = _load_font(cfg.get("font_cite", _FONT_THIN), sz_cite, cfg.get("font_cite_index", 0))
-    font_date = _load_font(cfg.get("font_date", _FONT_THIN), sz_date, cfg.get("font_date_index", 0))
+    font_h1 = _load_font(cfg.get("font_word", FONT_BOLD), sz_h1, cfg.get("font_word_index", 0))
+    font_h2 = _load_font(cfg.get("font_word", FONT_BOLD), sz_h2, cfg.get("font_word_index", 0))
+    font_body = _load_font(cfg.get("font_body", FONT_THIN), sz_body, cfg.get("font_body_index", 0))
+    font_bold = _load_font(cfg.get("font_bold", cfg.get("font_word", FONT_BOLD)), sz_body, cfg.get("font_bold_index", cfg.get("font_word_index", 0)))
+    font_cite = _load_font(cfg.get("font_cite", FONT_THIN), sz_cite, cfg.get("font_cite_index", 0))
+    font_date = _load_font(cfg.get("font_date", FONT_THIN), sz_date, cfg.get("font_date_index", 0))
 
     scratch = ImageDraw.Draw(Image.new("1", (1, 1)))
 
@@ -225,19 +216,7 @@ def render_markdown(md_text: str, config: dict = None, show_date: bool = True, s
     def wrap_text(text, font, max_w):
         if hard_wrap:
             return _hard_wrap(text, font, max_w, text_width)
-        words = text.split()
-        lines = []
-        current = ""
-        for word in words:
-            test = f"{current} {word}".strip()
-            if text_width(test, font) > max_w and current:
-                lines.append(current)
-                current = word
-            else:
-                current = test
-        if current:
-            lines.append(current)
-        return lines or [""]
+        return _helpers_wrap_text(text, font, max_w, scratch)
 
     def wrap_segments(segments, fonts, max_w):
         """

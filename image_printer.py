@@ -10,6 +10,7 @@ Three dither modes:
 
 import math
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
+from helpers import open_image
 
 
 # 8x8 Bayer threshold map (values 0–63, we compare against 0–255 scaled)
@@ -149,14 +150,7 @@ def process_image(path: str, config: dict = None,
     sharpness = sharpness if sharpness is not None else cfg.get("sharpness", 1.2)
     blur = blur if blur is not None else cfg.get("blur", 0)
 
-    img = Image.open(path)
-    # Handle EXIF rotation
-    img = ImageOps.exif_transpose(img)
-    # Drop alpha channel if present
-    if img.mode in ("RGBA", "LA", "PA"):
-        bg = Image.new("RGB", img.size, (255, 255, 255))
-        bg.paste(img, mask=img.split()[-1])
-        img = bg
+    img = open_image(path)
 
     grey = _prepare(img, paper_px, contrast, brightness, sharpness)
     grey = _apply_blur(grey, blur)
