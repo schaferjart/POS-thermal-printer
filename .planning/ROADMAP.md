@@ -13,7 +13,7 @@ This is a hardening milestone for an existing, working thermal print server. The
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Extract shared utilities into helpers.py and add config validation on startup
-- [ ] **Phase 2: Server Hardening** - Input validation, Formatter state safety, graceful shutdown, and error consistency
+- [x] **Phase 2: Server Hardening** - Input validation, Formatter state safety, graceful shutdown, and error consistency
 - [ ] **Phase 3: Access Control and Observability** - API key authentication and health endpoint improvements
 - [ ] **Phase 4: Test Suite** - pytest tests for rendering, validation, auth, and dithering
 
@@ -46,7 +46,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md -- Add try/finally guards to all Formatter methods and create font_b_text
 - [x] 02-02-PLAN.md -- Add input validation, MAX_CONTENT_LENGTH, ESC@ init, and error consistency to print_server.py
-- [ ] 02-03-PLAN.md -- Add SIGTERM graceful shutdown and fix portrait pipeline config mutation
+- [x] 02-03-PLAN.md -- Add SIGTERM graceful shutdown and fix portrait pipeline config mutation
 
 ### Phase 3: Access Control and Observability
 **Goal**: Print endpoints require an API key and the health endpoint reports real printer status
@@ -79,6 +79,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-08 |
-| 2. Server Hardening | 2/3 | In Progress | - |
+| 2. Server Hardening | 3/3 | Complete | 2026-03-09 |
 | 3. Access Control and Observability | 0/? | Not started | - |
 | 4. Test Suite | 0/? | Not started | - |
