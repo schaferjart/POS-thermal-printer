@@ -11,7 +11,7 @@ Requirements for the hardening milestone. Each maps to roadmap phases.
 
 - [ ] **REL-01**: Server returns 400 with clear error message when required JSON fields are missing
 - [ ] **REL-02**: Server rejects requests over 10MB with 413 status before processing
-- [ ] **REL-03**: Formatter methods use try/finally guards so printer state is always reset after each operation
+- [x] **REL-03**: Formatter methods use try/finally guards so printer state is always reset after each operation
 - [ ] **REL-04**: Printer receives ESC@ initialize command at the start of every print job
 - [ ] **REL-05**: Server handles SIGTERM gracefully — deregisters mDNS, closes printer connection, then exits
 - [x] **REL-06**: Server validates config.yaml on startup and fails fast with clear message if required keys are missing
@@ -21,7 +21,7 @@ Requirements for the hardening milestone. Each maps to roadmap phases.
 - [x] **QUAL-01**: Shared font path resolution extracted to single location (helpers.py), used by templates.py and md_renderer.py
 - [x] **QUAL-02**: Shared wrap_text function extracted to single location, used by templates.py and md_renderer.py
 - [x] **QUAL-03**: Shared image-open logic (EXIF transpose + alpha removal) extracted to single location, used by image_printer.py, image_slicer.py, portrait_pipeline.py
-- [ ] **QUAL-04**: Raw ESC/POS commands in print_server.py moved into Formatter methods in printer_core.py
+- [x] **QUAL-04**: Raw ESC/POS commands in print_server.py moved into Formatter methods in printer_core.py
 - [ ] **QUAL-05**: Portrait pipeline config mutation bug fixed — no shared state leak between requests
 - [ ] **QUAL-06**: All server error responses use consistent structured JSON format: {"error": "message", "field": "name"}
 
@@ -83,14 +83,14 @@ Deferred to future release. Tracked but not in current roadmap.
 |-------------|-------|--------|
 | REL-01 | Phase 2 | Pending |
 | REL-02 | Phase 2 | Pending |
-| REL-03 | Phase 2 | Pending |
+| REL-03 | Phase 2 | Complete |
 | REL-04 | Phase 2 | Pending |
 | REL-05 | Phase 2 | Pending |
 | REL-06 | Phase 1 | Complete |
 | QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 1 | Complete |
 | QUAL-03 | Phase 1 | Complete |
-| QUAL-04 | Phase 2 | Pending |
+| QUAL-04 | Phase 2 | Complete |
 | QUAL-05 | Phase 2 | Pending |
 | QUAL-06 | Phase 2 | Pending |
 | AUTH-01 | Phase 3 | Pending |

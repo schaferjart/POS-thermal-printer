@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 01-02-PLAN.md (config validation for server startup)
-last_updated: "2026-03-08T17:08:47.039Z"
-last_activity: 2026-03-08 -- Completed 01-02-PLAN.md (config validation)
+status: executing
+stopped_at: Completed 02-01-PLAN.md (Formatter state safety guards)
+last_updated: "2026-03-09T00:01:41Z"
+last_activity: 2026-03-09 -- Completed 02-01-PLAN.md (Formatter state safety)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 25
+  total_plans: 3
+  completed_plans: 3
+  percent: 37
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 2 of 4 (Server Hardening)
-Plan: 0 of ? in current phase
-Status: Phase 1 complete, awaiting Phase 2 planning
-Last activity: 2026-03-08 -- Completed 01-02-PLAN.md (config validation)
+Plan: 1 of 3 in current phase
+Status: Executing Phase 2
+Last activity: 2026-03-09 -- Completed 02-01-PLAN.md (Formatter state safety)
 
-Progress: [██░░░░░░░░] 25%
+Progress: [███░░░░░░░] 37%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 5 min
+- Total plans completed: 3
+- Average duration: 4 min
 - Total execution time: 0.2 hours
 
 **By Phase:**
@@ -44,9 +44,10 @@ Progress: [██░░░░░░░░] 25%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1-Foundation | 2 | 10 min | 5 min |
+| 2-Server Hardening | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (6 min), 01-02 (4 min)
+- Last 5 plans: 01-01 (6 min), 01-02 (4 min), 02-01 (3 min)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -67,6 +68,8 @@ Recent decisions affecting current work:
 - [01-02]: Hand-rolled validation (dict traversal + sys.exit) -- zero new dependencies, ~20 lines
 - [01-02]: Reports ALL missing keys in one pass, not just the first
 - [01-02]: Uses [FATAL] prefix and names exact dotted key path in error message
+- [02-01]: Tests use MagicMock on p.set() to verify reset calls happen on exception, not just that subsequent ops succeed
+- [02-01]: font_b_text() placed next to small() since both deal with Font B
 
 ### Pending Todos
 
@@ -79,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08
-Stopped at: Completed 01-02-PLAN.md (config validation for server startup)
+Last session: 2026-03-09
+Stopped at: Completed 02-01-PLAN.md (Formatter state safety guards)
 Resume file: None
