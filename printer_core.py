@@ -2,6 +2,7 @@
 Core printer module — handles connection and text formatting for ESC/POS thermal printers.
 """
 
+import sys
 import textwrap
 import yaml
 from escpos.printer import Usb, Network, Dummy
@@ -10,6 +11,28 @@ from escpos.printer import Usb, Network, Dummy
 def load_config(path="config.yaml"):
     with open(path) as f:
         return yaml.safe_load(f)
+
+
+def validate_config(config):
+    """Validate required config keys. Exits with clear error if any missing."""
+    required = {
+        "printer.vendor_id": ("printer", "vendor_id"),
+        "printer.product_id": ("printer", "product_id"),
+        "printer.paper_width": ("printer", "paper_width"),
+        "server.port": ("server", "port"),
+    }
+    missing = []
+    for label, path in required.items():
+        section = config
+        for key in path:
+            if not isinstance(section, dict) or key not in section:
+                missing.append(label)
+                break
+            section = section[key]
+    if missing:
+        for key in missing:
+            print(f"[FATAL] config.yaml: missing required key '{key}'")
+        sys.exit(1)
 
 
 def connect(config=None, dummy=False):
