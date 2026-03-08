@@ -12,7 +12,7 @@ This is a hardening milestone for an existing, working thermal print server. The
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Extract shared utilities into helpers.py and add config validation on startup
+- [x] **Phase 1: Foundation** - Extract shared utilities into helpers.py and add config validation on startup
 - [ ] **Phase 2: Server Hardening** - Input validation, Formatter state safety, graceful shutdown, and error consistency
 - [ ] **Phase 3: Access Control and Observability** - API key authentication and health endpoint improvements
 - [ ] **Phase 4: Test Suite** - pytest tests for rendering, validation, auth, and dithering
@@ -29,8 +29,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Server refuses to start if config.yaml is missing required keys (USB IDs, paper width, server port) and prints a clear error message naming the missing key
 **Plans:** 2 plans
 Plans:
-- [ ] 01-01-PLAN.md -- Extract resolve_font_path, wrap_text, open_image into helpers.py and update all consumers
-- [ ] 01-02-PLAN.md -- Add config validation to printer_core.py and wire into server startup
+- [x] 01-01-PLAN.md -- Extract resolve_font_path, wrap_text, open_image into helpers.py and update all consumers
+- [x] 01-02-PLAN.md -- Add config validation to printer_core.py and wire into server startup
 
 ### Phase 2: Server Hardening
 **Goal**: Bad input returns clear errors, the printer never gets stuck in dirty state, and shutdown is clean
@@ -74,7 +74,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/2 | Planning complete | - |
+| 1. Foundation | 2/2 | Complete | 2026-03-08 |
 | 2. Server Hardening | 0/? | Not started | - |
 | 3. Access Control and Observability | 0/? | Not started | - |
 | 4. Test Suite | 0/? | Not started | - |

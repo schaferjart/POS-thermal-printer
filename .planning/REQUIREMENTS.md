@@ -14,7 +14,7 @@ Requirements for the hardening milestone. Each maps to roadmap phases.
 - [ ] **REL-03**: Formatter methods use try/finally guards so printer state is always reset after each operation
 - [ ] **REL-04**: Printer receives ESC@ initialize command at the start of every print job
 - [ ] **REL-05**: Server handles SIGTERM gracefully — deregisters mDNS, closes printer connection, then exits
-- [ ] **REL-06**: Server validates config.yaml on startup and fails fast with clear message if required keys are missing
+- [x] **REL-06**: Server validates config.yaml on startup and fails fast with clear message if required keys are missing
 
 ### Code Quality
 
@@ -86,7 +86,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | REL-03 | Phase 2 | Pending |
 | REL-04 | Phase 2 | Pending |
 | REL-05 | Phase 2 | Pending |
-| REL-06 | Phase 1 | Pending |
+| REL-06 | Phase 1 | Complete |
 | QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 1 | Complete |
 | QUAL-03 | Phase 1 | Complete |
