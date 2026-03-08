@@ -24,6 +24,8 @@ python print_cli.py <command>     # direct
 python print_server.py
 ```
 
+When `api_key` is set in `config.yaml`, include `-H "X-Print-Key: YOUR_KEY"` in curl commands. The `/health` and `/` endpoints are always public.
+
 **Testing without hardware** — all commands accept `--dummy`:
 ```bash
 ./print.sh test --dummy
@@ -35,7 +37,7 @@ python print_server.py
 ./stress_test.sh [host:port]      # default: 192.168.1.65:9100
 ```
 
-There are no unit tests or linting configured.
+**Tests:** `python -m pytest tests/ -v` (no linting configured).
 
 ## Architecture
 
@@ -55,6 +57,7 @@ There are no unit tests or linting configured.
 - **Image-based text rendering**: Markdown and dictionary templates render to PIL Images first, then print as raster image. This bypasses ESC/POS font limitations.
 - **Font styles in config.yaml**: Three styles (`dictionary`, `helvetica`, `acidic`) define font paths, sizes, spacing, margins. `.ttc` collections use `font_*_index` for face selection. Add new styles by copying a block and pointing to new font files.
 - **New template**: Add function in `templates.py`, add CLI subcommand in `print_cli.py`, add endpoint in `print_server.py`.
+- **API key auth**: Optional. Set `api_key` under `server:` in `config.yaml`. All `/print/*` and `/portrait/*` endpoints require `X-Print-Key` header. `/health` and `/` are always public. New public endpoints must be added to `_PUBLIC_ENDPOINTS` frozenset in `print_server.py`.
 - **New dithering mode**: Add to `_MODES` dict in `image_printer.py`.
 
 ## CLI commands
