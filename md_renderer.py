@@ -98,22 +98,24 @@ def _load_font(path, size, index=0):
     if os.path.exists(resolved):
         return ImageFont.truetype(resolved, size=size, index=index)
 
+    is_bold = index == 1
+
     # Fallback: map macOS system fonts to Linux equivalents
     basename = os.path.basename(resolved)
     if basename == "HelveticaNeue.ttc":
-        # Bold indices (1) → DejaVuSans-Bold, others → DejaVuSans (regular)
-        bold_indices = {1}
-        linux_font = "DejaVuSans-Bold.ttf" if index in bold_indices else "DejaVuSans.ttf"
+        linux_font = "DejaVuSans-Bold.ttf" if is_bold else "DejaVuSans.ttf"
         for search_dir in ("/usr/share/fonts/truetype/dejavu",
                            "/usr/share/fonts/TTF",
                            "/usr/share/fonts/dejavu-sans-fonts"):
             candidate = os.path.join(search_dir, linux_font)
             if os.path.exists(candidate):
+                print(f"[md_renderer] Font fallback: {resolved} → {candidate}")
                 return ImageFont.truetype(candidate, size=size)
 
     # Last resort: bundled fonts
-    fallback = _FONT_BOLD if index in (1,) else _FONT_THIN
+    fallback = _FONT_BOLD if is_bold else _FONT_THIN
     if os.path.exists(fallback):
+        print(f"[md_renderer] Font fallback: {resolved} → {fallback}")
         return ImageFont.truetype(fallback, size=size)
 
     raise FileNotFoundError(f"Font not found: {resolved} (no fallback available)")
