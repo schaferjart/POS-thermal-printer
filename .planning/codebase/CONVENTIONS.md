@@ -1,210 +1,201 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-07
+**Analysis Date:** 2026-03-08
 
 ## Naming Patterns
 
 **Files:**
 - Use `snake_case.py` for all Python modules: `print_cli.py`, `printer_core.py`, `image_printer.py`, `md_renderer.py`, `image_slicer.py`, `portrait_pipeline.py`
-- Entry point files are prefixed with `print_`: `print_cli.py`, `print_server.py`
-- Shell wrapper: `print.sh`
+- Use `snake_case.sh` for shell scripts: `print.sh`, `setup.sh`, `stress_test.sh`, `run_portrait.sh`
+- Config is a single `config.yaml` at project root
 
 **Functions:**
-- Use `snake_case` throughout: `cmd_test()`, `process_image()`, `render_markdown()`, `select_best_photo()`
-- CLI handler functions prefixed with `cmd_`: `cmd_test()`, `cmd_message()`, `cmd_receipt()`, `cmd_image()`, `cmd_markdown()` in `print_cli.py`
-- Private/internal functions prefixed with `_`: `_prepare()`, `_apply_blur()`, `_dither_floyd()`, `_dither_halftone()`, `_resolve_font_path()`, `_render_dictionary_image()`, `_parse_inline()`, `_parse_md()`
-- Flask route handlers prefixed with `print_`: `print_receipt()`, `print_message()`, `print_label()`, `print_image()` in `print_server.py`
+- Use `snake_case` for all functions: `connect()`, `load_config()`, `process_image()`, `render_markdown()`
+- CLI handler functions use `cmd_` prefix: `cmd_test()`, `cmd_message()`, `cmd_receipt()`, `cmd_image()` in `print_cli.py`
+- Private/internal functions use `_` prefix: `_prepare()`, `_apply_blur()`, `_dither_floyd()`, `_dither_halftone()`, `_render_dictionary_image()`, `_resolve_font_path()`, `_parse_inline()`, `_parse_md()`
+- Flask route functions match the endpoint pattern: `print_receipt()`, `print_message()`, `print_label()` in `print_server.py`
 
 **Variables:**
-- Use `snake_case` for all variables: `paper_px`, `dot_size`, `line_spacing`, `font_body`
-- Short abbreviations acceptable for local scope: `w`, `h` (width/height), `p` (printer), `fmt` (formatter), `cfg` (config section), `img` (image), `lm` (landmarks)
-- Config dict keys use `snake_case`: `paper_width`, `vendor_id`, `font_word`, `size_body`
-- Module-level private constants prefixed with `_`: `_BAYER_8x8`, `_MODES`, `_FONTS_DIR`, `_FONT_THIN`, `_INLINE_RE`
+- Use `snake_case` for all variables: `paper_px`, `line_spacing`, `dot_size`
+- Short abbreviations are acceptable for frequently used locals: `w`, `h` (width/height), `img`, `fmt` (formatter), `cfg` (config section), `p` (printer)
+- Module-level constants use `_UPPER_SNAKE` with leading underscore: `_BAYER_8x8`, `_MODES`, `_FONTS_DIR`, `_FONT_THIN`, `_FONT_BOLD`, `_INLINE_RE`
+- Global mutable state in `print_server.py` uses `_lower_snake` with leading underscore: `_config`, `_printer`, `_dummy`, `_zeroconf`, `_print_lock`
 
 **Classes:**
-- Use `PascalCase`: `Formatter` in `printer_core.py` (the only class in the codebase)
+- Use `PascalCase`: `Formatter` (the only class in the codebase, in `printer_core.py`)
 
-**Type Hints:**
-- Used on public function signatures but not internal ones
-- Pattern: `def receipt(fmt: Formatter, data: dict, config: dict):`
-- Return types annotated on image-producing functions: `-> Image.Image`
-- Not used on CLI handlers, local helper functions, or variables
+**Config Keys:**
+- Use `snake_case` in `config.yaml`: `paper_width`, `vendor_id`, `font_word`, `line_spacing`
 
 ## Code Style
 
 **Formatting:**
-- No formatter configured (no `.prettierrc`, `pyproject.toml`, `.editorconfig`, etc.)
-- Consistent 4-space indentation throughout
-- Max line length approximately 100-120 characters (not enforced)
-- Blank line between function definitions; two blank lines between top-level definitions
+- No formatter configured (no `.prettierrc`, `.editorconfig`, `pyproject.toml`, or `setup.cfg`)
+- Consistent 4-space indentation throughout all Python files
+- Single blank line between functions within a class or module
+- Double blank line between top-level definitions (classes, standalone functions)
+- f-strings used exclusively for string formatting (no `%` or `.format()`)
 
 **Linting:**
-- No linter configured (no `.flake8`, `pylintrc`, `ruff.toml`, etc.)
-- Code is clean and consistent despite no tooling
+- No linter configured (no `.flake8`, `pylint`, `ruff`, or `mypy` config)
+- No type checking tool
+- Type hints used sparingly: function signatures in `templates.py` use them (`fmt: Formatter`, `data: dict`, `config: dict`), return types are not annotated
+- `list[str]` and `list[tuple[str, str]]` used (Python 3.9+ syntax) in `templates.py` and `portrait_pipeline.py`
 
-**String Formatting:**
-- Use f-strings exclusively: `f"[OK] Receipt printed ({len(data.get('items', []))} items)"`
-- Console output uses bracket-prefix convention: `[OK]`, `[DUMMY]`, `[INFO]`, `[WARN]`, `[PORTRAIT]`
+**Line Length:**
+- No enforced limit; lines occasionally exceed 100 characters, especially in `print_server.py` lambda expressions (line 202)
 
 ## Import Organization
 
 **Order:**
-1. Standard library imports: `import os`, `import sys`, `import json`, `import math`, `import re`
-2. Third-party imports: `from PIL import Image`, `from flask import Flask`, `import yaml`, `import requests`
-3. Local project imports: `from printer_core import load_config, connect, Formatter`, `import templates`
+1. Standard library imports: `os`, `sys`, `io`, `math`, `re`, `json`, `time`, `socket`, `base64`, `textwrap`, `argparse`, `tempfile`, `threading`, `logging`, `atexit`, `datetime`
+2. Third-party imports: `flask`, `flask_cors`, `zeroconf`, `yaml`, `PIL`, `numpy`, `requests`, `mediapipe`
+3. Local imports: `printer_core`, `templates`, `image_printer`, `image_slicer`, `portrait_pipeline`, `md_renderer`
 
 **Style:**
-- Mix of `import module` and `from module import name` — use whichever is cleaner
-- Group related imports on one line: `from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter, ImageOps`
-- Lazy imports inside functions for optional/heavy dependencies:
-  ```python
-  # In portrait_pipeline.py
-  def detect_face_landmarks(image):
-      import mediapipe as mp
-  ```
-  ```python
-  # In print_cli.py cmd_slice()
-  from PIL import ImageOps, ImageEnhance, ImageFilter
-  ```
+- Use `from X import Y` for specific items: `from printer_core import load_config, connect, Formatter`
+- Use `import X` for module-level access: `import templates`
+- Conditional imports for optional dependencies wrapped in try/except at module level:
+```python
+try:
+    from portrait_pipeline import run_pipeline
+    _has_portrait = True
+except ImportError:
+    _has_portrait = False
+```
+- Lazy imports used inside functions when needed only for specific code paths: `from PIL import ImageOps, ImageEnhance, ImageFilter` inside `cmd_slice()` in `print_cli.py`; `import mediapipe as mp` inside `detect_face_landmarks()` in `portrait_pipeline.py`
 
 **Path Aliases:**
-- None used. All imports are direct module references in the flat project structure.
+- None. All imports are relative module names (flat project structure).
 
 ## Error Handling
 
 **Patterns:**
-- Raise `RuntimeError` with descriptive messages for configuration/setup errors:
-  ```python
-  if not api_key:
-      raise RuntimeError("OPENROUTER_API_KEY not set. Export it or set portrait.openrouter_api_key_env in config.")
-  ```
-- Raise `ValueError` for invalid user input:
-  ```python
-  raise ValueError(f"Unknown dither mode '{mode}'. Choose from: {', '.join(_MODES)}")
-  ```
-- Use `resp.raise_for_status()` for HTTP errors (lets `requests.HTTPError` propagate)
-- Server retry pattern in `print_server.py` — `with_retry()` catches any `Exception` and reconnects once:
-  ```python
-  def with_retry(fn):
-      try:
-          fn(get_formatter())
-      except Exception:
-          fn(reconnect())
-  ```
-- File cleanup with `try/finally` (not context managers) for temp files:
-  ```python
-  tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-  try:
-      # ... use tmp ...
-  finally:
-      os.unlink(tmp.name)
-  ```
-- No custom exception classes — use built-in `RuntimeError` and `ValueError` only
-- No error handling in CLI handlers — exceptions propagate to terminal
+- **Server endpoints:** Global Flask error handler in `print_server.py` catches all exceptions and returns JSON: `{"error": str(e)}` with appropriate HTTP status code
+- **Print retry:** `with_retry()` in `print_server.py` wraps print operations with mutex lock, catches first failure, reconnects printer, retries once, then raises on second failure
+- **Bare except for cleanup:** `except Exception: pass` used for non-critical cleanup (closing printer before reconnect in `reconnect()`, deleting temp files in `portrait_capture()`)
+- **CLI handlers:** No try/except — exceptions propagate to the user as stack traces
+- **Missing dependencies:** Guarded with `_has_portrait` boolean flag; CLI prints helpful install instructions and exits with `sys.exit(1)`; server returns HTTP 501 with JSON error
+- **Input validation:** Minimal — server uses `request.get_json(force=True)` which raises on invalid JSON. Missing required fields cause KeyError, caught by global handler
+- **Config access:** Uses `.get()` with defaults throughout: `cfg.get("paper_px", 576)`, `cfg.get("mode", "floyd")`
+- **Raise patterns:** Use `RuntimeError` for configuration/setup errors (missing API keys, webhook URLs) in `portrait_pipeline.py`; `ValueError` for invalid arguments in `image_printer.py`
 
 ## Logging
 
-**Framework:** `print()` statements only — no logging module
+**Framework:** Mixed — `logging` module in `print_server.py`, `print()` everywhere else
 
-**Patterns:**
-- Bracket-prefixed messages for status: `print(f"[OK] Receipt printed")`
-- Prefixes used: `[OK]`, `[DUMMY]`, `[INFO]`, `[WARN]`, `[PORTRAIT]`
-- Server uses `[INFO]` for startup messages, `[WARN]` for non-fatal issues (e.g., Bonjour registration failure)
-- Portrait pipeline uses `[PORTRAIT]` prefix for all pipeline status messages
-- CLI uses `[OK]` for success, `[DUMMY]` when running without hardware
+**Server logging:**
+```python
+logger = logging.getLogger(__name__)
+logger.warning("Print failed (%s), reconnecting...", e)
+logger.error("Retry also failed: %s", e2)
+logger.error("Request error: %s", e)
+```
+
+**Console output pattern:**
+- Use bracketed prefixes for status messages: `[OK]`, `[DUMMY]`, `[INFO]`, `[WARN]`, `[PORTRAIT]`
+- Examples:
+```python
+print("[OK] Test page printed")
+print("[DUMMY] Preview saved to {out}")
+print("[INFO] Server listening on http://{host}:{port}")
+print("[PORTRAIT] AI selected photo {idx + 1}/{len(image_paths)}")
+print(f"[md_renderer] Font fallback: {resolved} -> {candidate}")
+```
 
 ## Comments
 
 **When to Comment:**
-- Module-level docstrings on every `.py` file explaining purpose and usage
-- Docstrings on all public functions describing parameters and data shapes
-- Inline comments for non-obvious logic (e.g., ESC/POS byte sequences, Bayer matrix values, mediapipe landmark indices)
-- Section comments using `# --- Section Name ---` or `# -- Section Name --` pattern:
-  ```python
-  # --- Header ---
-  # --- Date/time ---
-  # --- Column headers ---
-  ```
-- Stage labels in pipeline code: `# Stage A: Photo selection`, `# Stage B: Style transfer`
+- Module-level docstrings describe purpose and usage for every `.py` file
+- Function docstrings on public functions describe parameters and expected data shapes (especially `data` dicts with example structures in `templates.py`)
+- Section comments use `# --- Section Name ---` pattern in longer functions
+- Inline comments for non-obvious ESC/POS byte sequences: `b'\x1b\x21\x01'  # ESC ! 0x01: Font B`
+- Comments in `config.yaml` describe every key
 
-**Docstrings:**
-- Use triple-quote docstrings with description on first line
-- Data structure expectations documented in docstrings with example dicts:
-  ```python
-  def receipt(fmt: Formatter, data: dict, config: dict):
-      """
-      Standard receipt template.
-      data = {
-          "items": [{"name": "Coffee", "qty": 2, "price": 5.00}],
-          "payment_method": "Card",
-      }
-      """
-  ```
-- No type-level docstring conventions (only one class)
+**Docstring Style:**
+- Triple-quoted multi-line docstrings
+- No formal docstring format (not Google/NumPy/reST style)
+- Data structure examples included inline:
+```python
+def receipt(fmt: Formatter, data: dict, config: dict):
+    """
+    Standard receipt template.
+
+    data = {
+        "items": [
+            {"name": "Coffee", "qty": 2, "price": 5.00},
+        ],
+        "payment_method": "Card",   # optional
+    }
+    """
+```
 
 ## Function Design
 
 **Size:**
-- Functions are moderate length (10-60 lines typically)
-- `render_markdown()` in `md_renderer.py` is the longest at ~210 lines — it combines parsing and rendering in one function with nested helpers
+- Functions are generally 10-40 lines
+- Largest functions: `render_markdown()` in `md_renderer.py` (~120 lines), `_render_dictionary_image()` in `templates.py` (~110 lines) — these are rendering pipelines with measurement + draw passes
 
 **Parameters:**
-- Config values use the override pattern: CLI/server args override config values, config overrides defaults:
-  ```python
-  mode = mode or cfg.get("mode", "floyd")
-  contrast = contrast if contrast is not None else cfg.get("contrast", 1.3)
-  ```
-- Use `None` as default for optional numeric params to distinguish "not provided" from `0`/`0.0`
-- Pass `config` dict sections, not individual values, to template functions
+- Use keyword arguments with defaults for optional parameters: `mode=None, dot_size=None, contrast=None`
+- Config dict passed through function chains: `config: dict` parameter threaded from CLI/server to templates
+- `None` used as sentinel, resolved against config inside function: `mode = mode or cfg.get("mode", "floyd")`
+- Use `is not None` check when `0` or `0.0` is a valid value: `contrast = contrast if contrast is not None else cfg.get("contrast", 1.3)`
 
 **Return Values:**
-- Image-producing functions return `PIL.Image.Image`
-- Template functions return `None` (side-effect: prints to printer)
-- `run_pipeline()` returns `(selected_path, image)` tuple
+- Template functions return `None` (side-effect: print to printer)
+- Image processing functions return `PIL.Image.Image`
+- Renderer functions return `PIL.Image.Image`
+- `connect()` returns a printer object (Usb, Network, or Dummy)
+- `load_config()` returns a `dict`
 
 ## Module Design
 
 **Exports:**
-- No `__all__` defined in any module — all public functions are importable
-- No barrel files or `__init__.py` (flat module structure)
-- Private functions prefixed with `_` are still imported directly where needed:
-  ```python
-  from image_printer import process_image, _prepare, _apply_blur, _dither_floyd, _dither_bayer, _dither_halftone
-  ```
+- No `__all__` defined in any module
+- No `__init__.py` — flat module structure, not a package
+- Public API is implicit: functions without `_` prefix are public
 
-**Globals:**
-- Server module uses module-level globals for printer state: `_config`, `_printer`, `_dummy`, `_zeroconf` in `print_server.py`
-- Module-level constants prefixed with `_` for private, UPPER_CASE for semantic constants: `_BAYER_8x8`, `_MODES`, `_FONTS_DIR`
+**Barrel Files:**
+- Not used. Each module is imported directly by name.
 
 ## Configuration Pattern
 
-- All configuration lives in `config.yaml` — loaded via `load_config()` from `printer_core.py`
-- Config is a nested dict passed to functions; each module extracts its section:
-  ```python
-  cfg = (config or {}).get("halftone", {})
-  ```
-- Default values provided inline via `.get(key, default)` — no separate defaults dict
-- Font style configs (dictionary, helvetica, acidic) are top-level YAML sections with identical key structure — add a new style by copying a block
+**Centralized config:**
+- All settings in `config.yaml` loaded via `load_config()` from `printer_core.py`
+- Config dict threaded through all function calls
+- CLI/server args override config values; config values override hardcoded defaults
+- Pattern for reading a config section:
+```python
+cfg = (config or {}).get("halftone", {})
+paper_px = cfg.get("paper_px", 576)
+```
+
+**Adding new font styles:**
+- Copy an existing style block in `config.yaml` (e.g., `dictionary`, `helvetica`, `acidic`)
+- Reference from CLI: `--style mystyle`
+- The style name is the config section key
 
 ## CLI Pattern
 
+**Command dispatch:**
 - `argparse` with subparsers in `print_cli.py`
-- Each subcommand maps to a `cmd_*` function via a dispatch dict:
-  ```python
-  cmds = {"test": cmd_test, "message": cmd_message, ...}
-  cmds[args.command](args, config)
-  ```
-- All subcommands accept `--dummy` (inherited from parent parser)
-- Handler signature: `def cmd_*(args, config):`
+- Each subcommand has a `cmd_*` handler function taking `(args, config)`
+- Command-to-function mapping via dict: `cmds = {"test": cmd_test, "message": cmd_message, ...}`
+- Global `--dummy` and `--config` flags on the parent parser
 
-## Server Pattern
+## Server Endpoint Pattern
 
-- Flask with module-level globals, no application factory
-- All print endpoints follow: parse JSON -> `with_retry(lambda fmt: template_fn(fmt, ...))` -> return `jsonify({"status": "ok", ...})`
-- File upload endpoints use `tempfile.NamedTemporaryFile(delete=False)` with manual cleanup
-- CORS enabled globally via `flask-cors`
-- mDNS/Bonjour registration at startup with `atexit` cleanup
+**Adding new endpoints in `print_server.py`:**
+1. Define a Flask route function with `@app.route("/print/<name>", methods=["POST"])`
+2. Parse request with `data = request.get_json(force=True)`
+3. Wrap the print call in `with_retry(lambda fmt: templates.your_template(fmt, data, _config))`
+4. Return `jsonify({"status": "ok", "template": "<name>"})`
+
+**Thread safety:**
+- All print operations go through `with_retry()` which acquires `_print_lock` (a `threading.Lock()`)
+- Never call printer directly from a route handler without the lock
 
 ---
 
-*Convention analysis: 2026-03-07*
+*Convention analysis: 2026-03-08*

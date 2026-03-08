@@ -1,173 +1,178 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-07
+**Analysis Date:** 2026-03-08
 
 ## Tech Debt
 
-**Duplicated image-opening / alpha-handling logic:**
-- Issue: The same pattern (open image, EXIF transpose, alpha-to-white-background) is copy-pasted in 4 places with slight variations.
-- Files: `image_printer.py` (lines 152-159), `image_slicer.py` (lines 10-17), `portrait_pipeline.py` (lines 107-111, 413-418)
-- Impact: Bug fixes or format support changes must be applied in all 4 locations. Easy to miss one.
-- Fix approach: Extract a shared `open_image(path) -> Image` helper in `image_printer.py` or a new `image_utils.py` and import everywhere.
+**No Input Validation on Server Endpoints:**
+- Issue: Most server endpoints access `request.get_json(force=True)` and immediately index into the result dict without checking for required keys. Missing keys produce unhelpful 500 errors with Python tracebacks in the JSON error response.
+- Files: `print_server.py` (lines 101-132, all `@app.route` handlers)
+- Impact: `/print/message` crashes with `KeyError: 'text'` if the key is missing. Same for `/print/label` (`data["heading"]`), `/print/list` (`data["rows"]`, `data["title"]`), `/print/dictionary` (`data` passed to template which expects `data["word"]`), `/print/markdown` (`data["text"]`).
+- Fix approach: Add a validation helper that checks required keys and returns a 400 with a clear message. Example: `validate_keys(data, ["text"])` before calling templates.
 
-**Duplicated `_resolve_font_path` function:**
+**Duplicated Image-Open/Alpha-Strip Logic:**
+- Issue: The same EXIF-transpose + alpha-channel-removal pattern is copy-pasted in four places with slight variations.
+- Files: `image_printer.py` (lines 153-159), `image_slicer.py` (lines 10-17), `portrait_pipeline.py` (lines 107-111, 413-418)
+- Impact: Bug fixes or enhancements (e.g., handling new image modes) must be applied in all four places independently.
+- Fix approach: Extract a shared `open_image(path) -> Image.Image` function into a utility module or `image_printer.py`, then reuse it everywhere.
+
+**Duplicated `_resolve_font_path` Function:**
 - Issue: Identical function defined in both `templates.py` (line 134) and `md_renderer.py` (line 29).
 - Files: `templates.py`, `md_renderer.py`
-- Impact: Minor -- both resolve relative font paths the same way, but changes must be synced.
-- Fix approach: Move to a shared module (e.g., `printer_core.py` or `utils.py`).
+- Impact: Minor — any change to font resolution logic must be made in two places.
+- Fix approach: Move to a shared module (e.g., `font_utils.py`) or import from one canonical location.
 
-**Duplicated `wrap_text` function:**
-- Issue: Word-wrapping logic is reimplemented in `templates.py` (lines 171-186) and `md_renderer.py` (lines 201-216) with near-identical code.
-- Files: `templates.py`, `md_renderer.py`
-- Impact: Minor duplication. Both versions wrap text to pixel width using the same algorithm.
+**Duplicated `wrap_text` Function:**
+- Issue: Nearly identical word-wrapping implementations exist in `templates.py` (`_render_dictionary_image`, line 171) and `md_renderer.py` (`render_markdown`, line 225).
+- Files: `templates.py` (lines 171-186), `md_renderer.py` (lines 225-240)
+- Impact: Same as above — divergent bug fixes.
 - Fix approach: Extract into a shared text utility.
 
-**`cmd_slice` duplicates image processing pipeline from `image_printer.py`:**
-- Issue: `print_cli.py` `cmd_slice` (lines 126-172) manually reimplements the contrast/brightness/sharpness/blur/dither pipeline instead of calling `process_image()`. It also imports internal functions (`_prepare`, `_apply_blur`, `_dither_floyd`, etc.) that should be private.
-- Files: `print_cli.py` (lines 20, 126-172)
-- Impact: Adding a new dither mode or changing defaults requires updating both `image_printer.py` and `cmd_slice`. The `_` prefix convention for private functions is violated.
-- Fix approach: Refactor `image_printer.py` to expose a `dither_pil_image(img, config, **overrides)` function that takes a PIL Image (not a path), then call it from `cmd_slice`.
-
-**Mutable config dict modified in-place:**
-- Issue: `run_pipeline()` in `portrait_pipeline.py` mutates the shared config dict via `config.setdefault("portrait", {})["blur"] = blur` (lines 400-402).
+**Config Mutation in `run_pipeline`:**
+- Issue: `run_pipeline()` mutates the shared `config` dict via `config.setdefault("portrait", {})["blur"] = blur`. In the server, `_config` is a module-level global, so one request's blur/mode overrides persist for subsequent requests.
 - Files: `portrait_pipeline.py` (lines 399-402)
-- Impact: In the HTTP server, `_config` is a module-level global. If `run_pipeline` modifies it, subsequent requests inherit those modifications. This could cause subtle bugs where blur/dither values "stick" between requests.
-- Fix approach: Deep-copy the config at the start of `run_pipeline`, or pass blur/dither_mode as explicit parameters to downstream functions instead of injecting them into config.
+- Impact: If a user sends a portrait request with `blur=20`, all subsequent portrait requests without explicit blur will use 20 instead of the config default (10). This is a subtle stateful bug.
+- Fix approach: Deep-copy the config before mutation, or pass blur/mode as explicit function parameters rather than modifying config.
 
-**Setup script uses `.venv` but `print.sh` expects `venv`:**
-- Issue: `setup.sh` creates the virtualenv at `.venv` (line 52), but `print.sh` hardcodes `venv/bin/python` (line 3). CLAUDE.md also documents `venv` as the venv name.
-- Files: `setup.sh` (line 52: `VENV="$SCRIPT_DIR/.venv"`), `print.sh` (line 3: `"$DIR/venv/bin/python"`)
-- Impact: Running `setup.sh` then `print.sh` fails because the venv paths don't match.
-- Fix approach: Standardize on one name. Since `print.sh` and CLAUDE.md use `venv`, change `setup.sh` to use `VENV="$SCRIPT_DIR/venv"`.
+**Raw ESC/POS Commands in Server Code:**
+- Issue: The `/print/image` endpoint contains raw escape sequences (`b'\x1b\x21\x01'`, `b'\x1d\x21\x00'`) instead of using the `Formatter` abstraction.
+- Files: `print_server.py` (lines 183-186)
+- Impact: Bypasses the Formatter layer, making the code harder to understand and maintain. If printer model changes, these raw bytes may need updating.
+- Fix approach: Add a `small_text()` or equivalent method to `Formatter` in `printer_core.py` and use it here.
 
-## Known Bugs
-
-**`cmd_image` preview filename collision for paths without extension:**
-- Symptoms: If the image path has no `.` in the filename, `rsplit(".", 1)` returns the original string and the preview filename becomes malformed.
-- Files: `print_cli.py` (line 108)
-- Trigger: `python print_cli.py image myimage --dummy` (file named `myimage` with no extension)
-- Workaround: Always use files with extensions.
-
-**Server `/print/image` raw ESC/POS bytes bypass Formatter:**
-- Symptoms: The `do_print` lambda in `print_server.py` sends raw escape sequences (`fmt.p._raw(b'\x1b\x21\x01')`) to set Font B, bypassing the `Formatter` abstraction.
-- Files: `print_server.py` (lines 162-165)
-- Trigger: Every image print via HTTP.
-- Workaround: Works fine with current hardware, but raw bytes may not reset cleanly after reconnect/retry.
+**Flask Dev Server in Production:**
+- Issue: The server runs Flask's built-in development server (`app.run()`) which is single-threaded and not designed for production use.
+- Files: `print_server.py` (line 367)
+- Impact: Acceptable for a single-printer setup, but any concurrent requests block. The `_print_lock` provides thread safety, but Flask dev server is single-threaded anyway, so the lock only helps if `threaded=True` were enabled or a WSGI server used.
+- Fix approach: For current use case (single printer, low traffic), this is acceptable. If scaling is needed, switch to gunicorn with `--workers 1 --threads 4`.
 
 ## Security Considerations
 
-**HTTP server has no authentication:**
-- Risk: Any device on the network can send print jobs, including arbitrary text, images, or triggering the portrait pipeline (which calls external APIs and costs money).
-- Files: `print_server.py` (all routes)
-- Current mitigation: None. CORS is fully open (`CORS(app)` with no origin restrictions, line 47).
-- Recommendations: Add a shared secret / API key header check for non-GET routes. At minimum, restrict CORS origins. Consider rate limiting to prevent print spam.
+**No Authentication on HTTP Endpoints:**
+- Risk: Anyone on the same network can send print jobs, potentially wasting paper or printing offensive content. The portrait endpoint also proxies API keys to external services.
+- Files: `print_server.py` (all endpoints)
+- Current mitigation: None. Server binds to `0.0.0.0` by default.
+- Recommendations: Add a simple API key check via a header (e.g., `X-Print-Key`) or restrict to specific IPs. At minimum, document this as a known risk for shared networks. The mDNS broadcast (`register_mdns` at line 313) actively advertises the service to the entire network.
 
-**OpenRouter API key passed via HTTP header to n8n:**
-- Risk: The API key is forwarded in a custom header (`X-OpenRouter-Key`) to the n8n webhook. If the n8n instance is compromised or the webhook URL is leaked, the API key is exposed.
-- Files: `portrait_pipeline.py` (lines 123-125)
-- Current mitigation: HTTPS is used for the n8n webhook URL.
-- Recommendations: Consider having n8n store its own API key instead of receiving it from the client.
+**API Key Forwarded via n8n Webhook:**
+- Risk: The OpenRouter API key is sent as a header (`X-OpenRouter-Key`) to the n8n webhook URL configured in `config.yaml`. If the webhook URL is changed to a malicious endpoint, the API key is leaked.
+- Files: `portrait_pipeline.py` (lines 120-128)
+- Current mitigation: Webhook URL is in `config.yaml` which is version-controlled.
+- Recommendations: Validate the webhook URL domain before sending the key, or let the n8n workflow use its own stored key.
 
-**No input validation on server endpoints:**
-- Risk: `request.get_json(force=True)` on all endpoints means any Content-Type is accepted and parsed as JSON. Missing keys cause unhandled `KeyError` exceptions. No size limits on uploaded files.
-- Files: `print_server.py` (lines 80, 86, 93, 99, 108, 179)
-- Current mitigation: None.
-- Recommendations: Validate required fields, set `MAX_CONTENT_LENGTH` on the Flask app, and return 400 errors for malformed input instead of 500s.
+**`force=True` on `get_json` Bypasses Content-Type Check:**
+- Risk: `request.get_json(force=True)` parses the body as JSON regardless of Content-Type header. This is intentional for flexibility but means any POST with a JSON-like body will be processed.
+- Files: `print_server.py` (lines 101, 107, 115, 122, 129, 201)
+- Current mitigation: The global error handler returns JSON errors.
+- Recommendations: Minor concern. Could enforce `Content-Type: application/json` for stricter API behavior.
 
-**Flask development server used in production:**
-- Risk: `app.run()` uses Werkzeug's single-threaded development server. Not suitable for concurrent requests. No TLS.
-- Files: `print_server.py` (line 334)
-- Current mitigation: Single-printer hardware means concurrency is inherently limited.
-- Recommendations: Use gunicorn or waitress if concurrent access is expected. For a single-printer setup, this is acceptable but should be documented.
-
-**`.gitignore` does not cover sensitive files:**
-- Risk: `.env`, `*.key`, credentials files, and preview images (beyond the three listed) are not gitignored. The `preview_acidic.png`, `preview_floyd.png`, etc. are currently untracked.
-- Files: `.gitignore`
-- Current mitigation: No `.env` file exists currently.
-- Recommendations: Add `.env*`, `*.key`, `portrait_*.png`, `preview_*.png` to `.gitignore`.
+**Temp File Handling:**
+- Risk: Temp files in `/print/image` and `/portrait/*` endpoints are created with `delete=False` and manually cleaned up in `finally` blocks. If the process is killed between creation and cleanup, files persist.
+- Files: `print_server.py` (lines 156, 227, 277)
+- Current mitigation: `finally` blocks handle normal error cases.
+- Recommendations: Acceptable risk for a low-traffic print server. OS `/tmp` cleanup handles stragglers.
 
 ## Performance Bottlenecks
 
-**Halftone dithering uses pure Python pixel loops:**
-- Problem: `_dither_halftone` iterates over every cell with nested Python for-loops and per-pixel access via `pixels[x, y]`. For a 576px-wide image scaled to paper width, this is slow on Raspberry Pi.
-- Files: `image_printer.py` (lines 58-93)
-- Cause: No NumPy vectorization; raw PIL pixel access in Python.
-- Improvement path: Convert to NumPy array, use `reshape` + `mean` over cells, then draw circles with vectorized coordinates. Or use PIL's built-in quantize/dither.
+**Halftone Dithering is Pure Python Pixel Loop:**
+- Problem: `_dither_halftone()` iterates every pixel in nested Python loops to compute cell averages and draw circles.
+- Files: `image_printer.py` (lines 58-94)
+- Cause: No NumPy acceleration. For a 576px-wide image at ~800px tall, this processes ~460,000 pixels in pure Python.
+- Improvement path: Use NumPy for cell-average computation (`reshape` + `mean`) and vectorized circle drawing, or pre-compute a lookup table. Alternatively, accept that thermal printing is slow enough that this doesn't matter in practice.
 
-**Bayer dithering uses pure Python pixel loops:**
-- Problem: Same issue as halftone -- `_dither_bayer` iterates pixel-by-pixel in Python.
+**Bayer Dithering is Pure Python Pixel Loop:**
+- Problem: `_dither_bayer()` iterates every pixel individually.
 - Files: `image_printer.py` (lines 106-120)
-- Cause: Per-pixel threshold comparison in Python loops.
-- Improvement path: Convert to NumPy, create a tiled threshold matrix, and do a single vectorized comparison (`dst = (src_array > threshold_array).astype(np.uint8) * 255`).
+- Cause: Same as halftone — no vectorization.
+- Improvement path: NumPy threshold matrix comparison can process the entire image in one operation.
 
-**mediapipe imported inside function on every call:**
-- Problem: `detect_face_landmarks()` does `import mediapipe as mp` inside the function body. mediapipe is a heavy import (~1-2s).
-- Files: `portrait_pipeline.py` (line 160)
-- Cause: Lazy import to avoid requiring mediapipe for non-portrait users.
-- Improvement path: Import at module level with a try/except, or cache the import. The lazy import is a reasonable trade-off if portrait is rarely used.
+**Markdown Rendering Two-Pass Architecture:**
+- Problem: `render_markdown()` does a full layout pass to measure height, then a draw pass. For large documents (e.g., 50 sections), this processes all text twice.
+- Files: `md_renderer.py` (lines 189-403)
+- Cause: PIL images require known dimensions at creation time.
+- Improvement path: Allocate an oversized canvas and crop after drawing, eliminating the measurement pass. Or accept the current approach since thermal prints are small.
 
 ## Fragile Areas
 
-**Server global state (`_printer`, `_config`):**
-- Files: `print_server.py` (lines 49-53, 62-67)
-- Why fragile: Module-level mutable globals (`_printer`, `_config`) are shared across all request handlers. The `with_retry` mechanism (line 70) replaces `_printer` on failure via `reconnect()`, but if two requests fail simultaneously, the reconnect could race.
-- Safe modification: Always use `get_formatter()` to access the printer. Do not cache `_printer` in closures.
+**Formatter State Leaks:**
+- Files: `printer_core.py` (lines 30-160)
+- Why fragile: Every `Formatter` method sets printer state (alignment, bold, font) and resets it at the end. If an exception occurs between `set()` and the reset, the printer state is left dirty for subsequent calls. No context manager or try/finally guards.
+- Safe modification: Always reset state in a `finally` block, or use a context manager pattern.
+- Test coverage: No unit tests. Only stress_test.sh exercises the server end-to-end.
+
+**`left_right` Assumes ASCII-Width Characters:**
+- Files: `printer_core.py` (lines 103-108)
+- Why fragile: Uses `len(left)` and `len(right)` to calculate spacing, which counts characters not display width. CJK characters (2 display columns each), emojis, and accented characters will misalign.
+- Safe modification: Use `unicodedata.east_asian_width()` for proper column-width calculation.
 - Test coverage: None.
 
-**Raw ESC/POS byte sequences:**
-- Files: `print_server.py` (lines 162-165)
-- Why fragile: Hardcoded escape bytes (`\x1b\x21\x01`, `\x1d\x21\x00`) depend on the specific printer model's ESC/POS dialect. Changing printers may require updating these bytes.
-- Safe modification: Move to named constants or add to `Formatter` class (e.g., `fmt.font_b()`).
-- Test coverage: None.
+**Inline Markdown Regex:**
+- Files: `md_renderer.py` (lines 125-130)
+- Why fragile: The regex `_INLINE_RE` processes bold (`**`), italic (`*`), strikethrough (`~~`), and code (`` ` ``) patterns. Nested patterns (e.g., `**bold *italic***`) or patterns spanning multiple words with special characters can produce unexpected matches. The italic pattern `\*(.+?)\*` can match inside `**bold**` in edge cases.
+- Safe modification: Test with complex nested markdown before changing the regex. The current ordering (bold before italic) mitigates the most common case.
+- Test coverage: No unit tests for the parser.
 
-**`config.yaml` font paths are platform-specific:**
-- Files: `config.yaml` (lines 57-66)
-- Why fragile: The `helvetica` style references `/System/Library/Fonts/HelveticaNeue.ttc` which only exists on macOS. Running this style on Raspberry Pi (Linux) crashes with a font-not-found error.
-- Safe modification: Add a try/except around font loading with a fallback to bundled fonts, or detect the platform.
-- Test coverage: None.
-
-**Markdown renderer two-pass rendering with tuple-based ops:**
-- Files: `md_renderer.py` (lines 258-378)
-- Why fragile: The rendering pipeline builds a list of tuples (`ops`) with positional fields (e.g., `op[0]` is y, `op[1]` is kind, `op[2]` is text/row/None). Adding a new block type or field requires carefully matching tuple indices. No type safety.
-- Safe modification: Convert ops to dataclasses or named tuples.
-- Test coverage: None.
+**Portrait Pipeline External Dependencies:**
+- Files: `portrait_pipeline.py` (lines 63-83, 120-145)
+- Why fragile: Depends on OpenRouter API (for photo selection) and n8n webhook (for style transfer). If either service changes its API, is down, or rate-limits, the pipeline fails with unhelpful errors.
+- Safe modification: The `requests.post()` calls have timeouts (60s, 180s) which is good. Add retry logic and better error messages for common failure modes (401, 429, 503).
+- Test coverage: No tests. Cannot be tested without live API keys.
 
 ## Dependencies at Risk
 
-**`python-escpos` version 3.1:**
-- Risk: The `python-escpos` library has had breaking API changes between major versions. The codebase uses internal methods (`p._raw()`) that are not part of the public API.
-- Impact: Upgrading `python-escpos` could break raw byte sending and image printing.
-- Migration plan: Pin to `==3.1` (already done in `requirements.txt`). Audit `_raw()` calls if upgrading.
+**python-escpos 3.1:**
+- Risk: The `python-escpos` library's API (`.set()`, `.text()`, `.image()`, `._raw()`) is used extensively. The `._raw()` call is a private API that could change in future versions.
+- Impact: Formatter, templates, and server all break if the API changes.
+- Migration plan: Pin the version (already done in `requirements.txt`). Wrap `._raw()` calls in a Formatter method to isolate the private API usage.
 
-**`mediapipe` not in `requirements.txt`:**
-- Risk: `portrait_pipeline.py` imports `mediapipe` and `numpy` at runtime, but neither appears in `requirements.txt`. The portrait pipeline silently fails on a fresh install.
-- Impact: `python print_cli.py portrait` crashes with `ModuleNotFoundError`.
-- Migration plan: Add `mediapipe` and `numpy` to `requirements.txt`, or document them as optional dependencies for the portrait feature.
+**mediapipe (Optional):**
+- Risk: Large dependency (~30MB+), only used by portrait pipeline. Google occasionally deprecates mediapipe versions. Not listed in `requirements.txt` (intentionally optional).
+- Impact: Portrait pipeline unavailable without it. Server handles this gracefully via lazy import.
+- Migration plan: Current optional approach is correct. Could document alternative face detection libraries.
 
 ## Missing Critical Features
 
-**No automated tests:**
-- Problem: Zero test files exist. No test framework configured. No CI pipeline.
-- Blocks: Confident refactoring, regression detection, and contribution by others.
-
-**No request logging or audit trail:**
-- Problem: Print jobs are not logged. No way to review what was printed, when, or by whom.
+**No Request Size Limits:**
+- Problem: The Flask server has no limit on upload size. A malicious client could upload a multi-GB image to `/print/image` or `/portrait/capture` and exhaust memory.
 - Files: `print_server.py`
-- Blocks: Debugging print failures, usage tracking, and accountability.
+- Blocks: Nothing currently, but makes the server vulnerable to memory exhaustion attacks on the Pi (400MB systemd limit helps but doesn't prevent OOM).
 
-**No graceful error responses from server:**
-- Problem: Unhandled exceptions in print handlers return Flask's default 500 HTML error page, not JSON. The `with_retry` function silently swallows the first exception and only raises if the retry also fails.
-- Files: `print_server.py` (lines 70-75)
-- Blocks: Clients cannot distinguish between printer errors, validation errors, and server bugs.
+**No Rate Limiting:**
+- Problem: Any client can send unlimited requests, exhausting paper and printer resources.
+- Files: `print_server.py`
+- Blocks: Practical deployment on shared/public networks.
+
+**No Graceful Shutdown:**
+- Problem: The Zeroconf cleanup is registered via `atexit` (line 336), but Flask's dev server may not trigger atexit handlers on all signal types. The printer connection is never explicitly closed on shutdown.
+- Files: `print_server.py` (lines 331-338)
+- Blocks: Clean service restarts may leave stale mDNS registrations.
 
 ## Test Coverage Gaps
 
-**All code is untested:**
-- What's not tested: Every module -- `printer_core.py`, `templates.py`, `md_renderer.py`, `image_printer.py`, `image_slicer.py`, `portrait_pipeline.py`, `print_cli.py`, `print_server.py`
+**No Unit Tests:**
+- What's not tested: All Python modules — `printer_core.py`, `templates.py`, `md_renderer.py`, `image_printer.py`, `image_slicer.py`, `portrait_pipeline.py`
 - Files: All `.py` files
-- Risk: Any change could introduce regressions in formatting, layout calculations, image processing, or printer communication without detection.
-- Priority: High. Start with unit tests for `md_renderer.py` (pure function, testable with image comparison) and `image_printer.py` (dithering output can be snapshot-tested). The `--dummy` mode provides a natural seam for integration tests.
+- Risk: Refactoring any module (especially the markdown parser or image processing pipeline) could silently break functionality. The only safety net is `stress_test.sh` which is an integration test requiring a running server.
+- Priority: High for `md_renderer.py` (complex parsing logic) and `image_printer.py` (pixel-level algorithms). Medium for `templates.py` and `printer_core.py`.
+
+**Markdown Parser Edge Cases:**
+- What's not tested: Nested inline styles, escaped special characters, multi-line paragraphs, ordered lists (not supported but not documented as unsupported), code blocks (fenced ```) are parsed as paragraphs not code, empty headings, headings with inline formatting.
+- Files: `md_renderer.py` (lines 158-186, `_parse_md`)
+- Risk: Users submitting markdown via the web UI or API may get unexpected rendering. The stress test sends a code block but doesn't verify visual output.
+- Priority: Medium.
+
+**`--dummy` Mode Does Not Verify Output:**
+- What's not tested: The `Dummy` printer from `python-escpos` captures ESC/POS commands but nothing in the codebase inspects the captured output. Dummy mode is used only to avoid hardware errors, not to verify correctness.
+- Files: `printer_core.py` (line 20), all CLI commands
+- Risk: Tests pass in dummy mode but actual print output could be malformed.
+- Priority: Low — visual inspection of thermal prints is the practical QA method for this project.
+
+**Image Processing Correctness:**
+- What's not tested: Dithering algorithms produce correct output for known inputs. No golden-image comparison tests.
+- Files: `image_printer.py` (all dithering functions)
+- Risk: Changes to contrast/brightness/sharpness defaults or dithering logic could degrade print quality without detection.
+- Priority: Low — output quality is subjective and best judged visually.
 
 ---
 
-*Concerns audit: 2026-03-07*
+*Concerns audit: 2026-03-08*

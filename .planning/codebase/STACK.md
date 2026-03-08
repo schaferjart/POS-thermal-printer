@@ -1,105 +1,116 @@
 # Technology Stack
 
-**Analysis Date:** 2026-03-07
+**Analysis Date:** 2026-03-08
 
 ## Languages
 
 **Primary:**
-- Python 3.11 - All application code (8 source files at project root)
+- Python 3 - All application code (CLI, server, rendering, image processing)
 
 **Secondary:**
-- HTML/CSS/JavaScript - Single-page web UI in `templates/index.html`
-- YAML - Configuration in `config.yaml`
-- Bash - Venv wrapper script `print.sh`
+- Bash - Shell wrappers and setup scripts (`print.sh`, `setup.sh`, `run_portrait.sh`, `stress_test.sh`)
+- YAML - Configuration (`config.yaml`)
+- HTML - Single web UI page (`templates/index.html`)
 
 ## Runtime
 
 **Environment:**
-- Python 3.11 (CPython, confirmed via `venv/lib/python3.11/`)
-- No `.python-version` file present
+- Python 3 (no version pinned; system Python 3 via `python3 -m venv`)
+- No `.python-version` or `pyproject.toml` detected
 
 **Package Manager:**
-- pip (standard library)
-- Lockfile: None (only `requirements.txt` with pinned versions)
-- Virtual environment: `venv/` directory at project root
+- pip (via venv)
+- Lockfile: missing (only `requirements.txt` with pinned versions)
 
 ## Frameworks
 
 **Core:**
-- Flask 3.1.3 - HTTP server for receiving print jobs (`print_server.py`)
-- flask-cors 5.0.1 - CORS support for cross-origin requests from iPad/web clients (`print_server.py`)
+- Flask 3.1.3 - HTTP print server (`print_server.py`)
+- flask-cors 5.0.1 - Cross-origin requests for the web UI and iPad clients
 
 **Testing:**
-- None configured. No test framework, no test files. All testing is manual via `--dummy` flag.
+- No test framework configured (no pytest, unittest, etc.)
+- `stress_test.sh` is a Bash integration/acceptance test suite using curl
 
 **Build/Dev:**
-- No build system. Pure `venv + pip install -r requirements.txt`.
-- `print.sh` is a 3-line bash wrapper that activates the venv and runs `print_cli.py`.
+- No build system - pure Python with venv + pip
+- `setup.sh` handles system deps, venv creation, pip install, and systemd/launchd service setup
 
 ## Key Dependencies
 
 **Critical:**
-- `python-escpos` 3.1 - ESC/POS thermal printer protocol implementation. Core of `printer_core.py`. Provides `Usb`, `Network`, and `Dummy` printer classes.
-- `Pillow` (pillow) 12.1.1 - All image rendering: markdown-to-image, dithering, image processing, font rendering. Used in `md_renderer.py`, `image_printer.py`, `image_slicer.py`, `templates.py`, `portrait_pipeline.py`.
-- `PyYAML` 6.0.3 - Configuration loading from `config.yaml` via `printer_core.load_config()`.
+- `python-escpos` 3.1 - ESC/POS thermal printer protocol (USB and network). Core abstraction: `escpos.printer.Usb`, `escpos.printer.Network`, `escpos.printer.Dummy`
+- `pillow` 12.1.1 - Image rendering, manipulation, dithering, font rendering for markdown-to-image pipeline
+- `pyusb` 1.3.1 - Low-level USB communication (backend for python-escpos USB mode)
 
 **Infrastructure:**
-- `pyusb` 1.3.1 - USB communication with thermal printer hardware. Requires `libusb` system library on macOS (`brew install libusb`).
-- `zeroconf` 0.146.0 - Bonjour/mDNS service registration for automatic iPad discovery (`print_server.py:register_mdns()`).
-- `requests` >=2.31 - HTTP client for OpenRouter API and n8n webhook calls in `portrait_pipeline.py`.
-- `numpy` (implicit via mediapipe) - Used directly in `portrait_pipeline.py` for face landmark detection array processing.
+- `PyYAML` 6.0.3 - Configuration loading from `config.yaml`
+- `zeroconf` 0.146.0 - Bonjour/mDNS service registration for network discovery by iPads
+- `requests` >=2.31 - HTTP client for OpenRouter API and n8n webhook calls (portrait pipeline)
+- `Werkzeug` 3.1.6 - WSGI toolkit (Flask dependency)
+- `Jinja2` 3.1.6 - HTML template rendering (Flask dependency, used for `templates/index.html`)
 
-**Image/Print Utilities:**
-- `python-barcode` 0.16.1 - Barcode generation (used via `Formatter.barcode()` in `printer_core.py`)
-- `qrcode` 8.2 - QR code generation (used via `Formatter.qr()` and `python-escpos` integration)
+**Optional (portrait pipeline only):**
+- `numpy` - Array processing for face landmark detection (lazy import, not in requirements.txt)
+- `mediapipe` - Face mesh/landmark detection for zoom crop computation (lazy import, not in requirements.txt)
 
-**AI/ML (portrait pipeline only):**
-- `mediapipe` (imported lazily in `portrait_pipeline.py:detect_face_landmarks()`) - Face landmark detection for zoom crop computation. Not listed in `requirements.txt` -- must be installed separately.
-
-**Flask ecosystem (transitive):**
-- `Werkzeug` 3.1.6, `Jinja2` 3.1.6, `MarkupSafe` 3.0.3, `click` 8.3.1, `itsdangerous` 2.2.0, `blinker` 1.9.0
+**Utility:**
+- `python-barcode` 0.16.1 - Barcode generation
+- `qrcode` 8.2 - QR code generation
+- `argcomplete` 3.6.3 - Bash tab completion for CLI
 
 ## Configuration
 
 **Environment:**
-- All configuration in `config.yaml` at project root
-- Single environment variable: `OPENROUTER_API_KEY` (required only for portrait pipeline)
-- No `.env` file present; env var is expected to be exported manually
-- The env var name is configurable via `config.yaml` key `portrait.openrouter_api_key_env`
+- `.env` files present but gitignored - existence only noted
+- `OPENROUTER_API_KEY` env var required for portrait pipeline (photo selection + style transfer)
+- Config var name is configurable via `config.yaml` key `portrait.openrouter_api_key_env`
+
+**Application Config:**
+- `config.yaml` - Single config file for all settings:
+  - `printer` section: USB vendor/product IDs (`0x1fc9`/`0x2016`), connection type (usb/network), paper width (48 chars), encoding
+  - `server` section: host (`0.0.0.0`), port (`9100`)
+  - `template` section: receipt header/footer lines, currency
+  - `dictionary` section: font paths, sizes, spacing for dictionary art-print style
+  - `helvetica` section: macOS-only HelveticaNeue.ttc font configuration (not available on Pi)
+  - `acidic` section: large display font configuration
+  - `halftone` section: dithering defaults (mode, dot_size, contrast, brightness, sharpness, blur)
+  - `portrait` section: AI pipeline config (API keys, models, n8n webhook URL, style prompt, zoom crop settings)
 
 **Build:**
-- No build step. Run directly with Python interpreter.
-- `requirements.txt` - Pinned dependency versions (20 packages)
-- `config.yaml` - Runtime configuration for all features
+- No build config - pure interpreted Python
+- `requirements.txt` - pip dependencies with pinned versions
 
-**Hardware Configuration (in `config.yaml`):**
-- `printer.vendor_id` / `printer.product_id` - USB device identifiers (default: `0x1fc9` / `0x2016`)
-- `printer.connection` - `"usb"` or `"network"`
-- `printer.paper_width` - Character width (48 for 80mm paper)
-- `halftone.paper_px` - Pixel width (576 for 80mm @ 203 DPI)
+## Fonts
 
-**Font Configuration (in `config.yaml`):**
-- Three style presets: `dictionary`, `helvetica`, `acidic`
-- Each defines font file paths, sizes, spacing, margins
-- Bundled fonts in `fonts/`: `Burra-Bold.ttf`, `Burra-Thin.ttf`, `Acidic.TTF`
-- `helvetica` style uses macOS system fonts (`/System/Library/Fonts/HelveticaNeue.ttc`) with face index selection
+**Bundled fonts in `fonts/` directory:**
+- `fonts/Burra-Bold.ttf` - Bold weight for headings/emphasis
+- `fonts/Burra-Thin.ttf` - Thin weight for body text
+- `fonts/Acidic.TTF` - Display font for large character prints
+
+**System fonts (macOS only):**
+- `/System/Library/Fonts/HelveticaNeue.ttc` - Used by `helvetica` style, with `.ttc` index for weight selection
+- Linux fallback: DejaVu Sans fonts (`/usr/share/fonts/truetype/dejavu/`)
 
 ## Platform Requirements
 
 **Development (macOS):**
-- Python 3.11
-- `brew install libusb` (required for `pyusb` USB communication)
-- System fonts available at `/System/Library/Fonts/` (for `helvetica` style)
-- No IDE config, no linting, no formatting tools configured
+- Python 3
+- `libusb` (via `brew install libusb`)
+- System fonts for `helvetica` style
 
-**Production (Raspberry Pi 3):**
-- Debian Bookworm (aarch64)
-- USB thermal printer connected directly
-- Runs as `sudo ./venv/bin/python3 print_server.py` (root required for USB access)
-- Server listens on `0.0.0.0:9100`
-- Connected to eduroam WiFi (ETH Zurich campus network)
-- systemd service configured for auto-start (see recent commits)
+**Production (Raspberry Pi 3, Debian Trixie aarch64):**
+- `python3`, `python3-pip`, `python3-venv`
+- `libusb-1.0-0-dev` - USB library
+- `fonts-dejavu-core` - Fallback fonts for Linux
+- `usblp` kernel module must be blacklisted (`/etc/modprobe.d/no-usblp.conf`)
+- udev rule for USB printer access without root (`/etc/udev/rules.d/99-thermal-printer.rules`)
+- systemd service: `pos-printer.service` (auto-start, restart-on-failure, memory-capped at 400MB)
+
+**Target Hardware:**
+- 80mm ESC/POS thermal receipt printer (USB, vendor `0x1fc9`, product `0x2016`)
+- Paper: 576px width at 203 DPI
 
 ---
 
-*Stack analysis: 2026-03-07*
+*Stack analysis: 2026-03-08*

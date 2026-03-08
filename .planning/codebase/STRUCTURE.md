@@ -1,155 +1,192 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-07
+**Analysis Date:** 2026-03-08
 
 ## Directory Layout
 
 ```
 POS/
-├── fonts/                    # Bundled font files for image-based rendering
-│   ├── Acidic.TTF
-│   ├── Burra-Bold.ttf
-│   └── Burra-Thin.ttf
-├── templates/                # Flask HTML templates (web UI)
-│   └── index.html
-├── Printer/                  # Vendor printer drivers/tools (not used by code)
-├── .planning/                # GSD planning documents
-│   └── codebase/
-├── .claude/                  # Claude Code settings and worktree snapshots
-├── print_cli.py              # CLI entry point (argparse, command dispatch)
-├── print_server.py           # HTTP server entry point (Flask, port 9100)
-├── printer_core.py           # Printer connection + Formatter class
-├── templates.py              # Print layout templates (receipt, label, etc.)
-├── md_renderer.py            # Markdown-to-image renderer
-├── image_printer.py          # Image dithering pipeline (halftone/floyd/bayer)
-├── image_slicer.py           # Image slicing for poster-size prints
-├── portrait_pipeline.py      # AI portrait-to-statue pipeline
-├── config.yaml               # All configuration (printer, fonts, server, etc.)
-├── requirements.txt          # Python dependencies (pip)
-├── print.sh                  # Shell wrapper (activates venv, runs CLI)
-├── setup.sh                  # Initial setup script
-├── run_portrait.sh           # Portrait pipeline runner script
-├── example.md                # Example markdown input
-├── example_receipt.json       # Example receipt JSON data
-├── example_dictionary.json    # Example dictionary entry JSON data
-├── CLAUDE.md                 # Project instructions for Claude Code
-├── README.md                 # Project documentation
-├── .gitignore                # Git ignore rules
-└── preview_*.png             # Generated preview images (dummy mode output)
+├── print_cli.py            # CLI entry point (argparse)
+├── print_server.py         # HTTP server entry point (Flask, port 9100)
+├── print.sh                # Shell wrapper: activates venv, forwards to print_cli.py
+├── printer_core.py         # Printer connection + Formatter class
+├── templates.py            # Print layout functions (receipt, label, markdown, etc.)
+├── md_renderer.py          # Markdown-to-1-bit-image renderer
+├── image_printer.py        # Image dithering pipeline (halftone, floyd, bayer)
+├── image_slicer.py         # Split images into strips for poster-size prints
+├── portrait_pipeline.py    # AI portrait-to-sculpture pipeline (optional)
+├── config.yaml             # All configuration (printer, server, fonts, styles)
+├── requirements.txt        # Python dependencies
+├── setup.sh                # First-time setup (deps, venv, systemd/launchd)
+├── stress_test.sh          # Integration test suite (curl-based)
+├── run_portrait.sh         # Portrait pipeline runner script
+├── fonts/                  # Bundled font files
+│   ├── Acidic.TTF          # Display font for "acidic" style
+│   ├── Burra-Bold.ttf      # Default bold font
+│   └── Burra-Thin.ttf      # Default body font
+├── templates/              # Flask HTML templates
+│   └── index.html          # Web UI (single-page app)
+├── Printer/                # Vendor-provided printer tools/drivers (not used by code)
+│   ├── Linux Driver-*.zip
+│   ├── Mac Driver-*.zip
+│   └── POS Tools/          # Windows test utility
+├── example.md              # Sample markdown for testing
+├── example_dictionary.json # Sample dictionary entry JSON
+├── example_receipt.json    # Sample receipt JSON
+├── preview*.png            # Generated preview images (dummy mode output)
+├── .planning/              # GSD planning documents
+│   ├── codebase/           # Architecture/convention docs
+│   └── todos/              # Task tracking
+├── CLAUDE.md               # Project instructions for Claude Code
+└── README.md               # Project documentation
 ```
 
 ## Directory Purposes
 
+**Root (`/`):**
+- Purpose: All application code lives here -- flat module layout, no packages
+- Contains: Python modules, config, shell scripts, example data
+- Key files: `print_cli.py`, `print_server.py`, `printer_core.py`, `templates.py`, `config.yaml`
+
 **`fonts/`:**
-- Purpose: Bundled font files for image-based text rendering
-- Contains: `.ttf` and `.TTF` font files
-- Key files: `Burra-Bold.ttf` (headings/bold), `Burra-Thin.ttf` (body text), `Acidic.TTF` (large decorative style)
-- Note: System fonts (e.g., `/System/Library/Fonts/HelveticaNeue.ttc`) are also referenced via absolute paths in `config.yaml`
+- Purpose: Bundled font files used by image-based text rendering
+- Contains: TTF font files (Burra-Thin, Burra-Bold, Acidic)
+- Key files: `Burra-Thin.ttf` (default body), `Burra-Bold.ttf` (default headings), `Acidic.TTF` (display/art style)
 
 **`templates/`:**
 - Purpose: Flask HTML templates for the web UI
-- Contains: Single `index.html` with inline CSS/JS for the browser-based print interface
-- Note: This is Flask's `templates/` directory (used by `render_template()`), distinct from `templates.py` which contains print layout functions
+- Contains: Single `index.html` file -- the web-based print interface
+- Key files: `index.html`
 
 **`Printer/`:**
-- Purpose: Vendor-supplied printer driver archives and test tools
-- Contains: ZIP archives of Linux/Mac drivers and a Windows POS test tool
-- Generated: No (manually placed vendor files)
-- Committed: Not currently tracked by git
+- Purpose: Vendor-provided tools and drivers for the thermal printer hardware
+- Contains: Zip archives of Linux/Mac drivers, Windows test utility
+- Not used by application code -- reference material only
+
+**`.planning/`:**
+- Purpose: GSD planning and analysis documents
+- Contains: Codebase analysis docs, todo tracking
+- Generated: Partially (codebase docs are generated by analysis)
+- Committed: Yes
 
 ## Key File Locations
 
 **Entry Points:**
-- `print_cli.py`: CLI entry point; all subcommands defined here
-- `print_server.py`: HTTP server entry point; all routes defined here
-- `print.sh`: Shell wrapper that activates venv and forwards args to `print_cli.py`
+- `print_cli.py`: CLI tool -- each subcommand maps to a `cmd_*()` function
+- `print_server.py`: Flask HTTP server -- each endpoint maps to a route handler
+- `print.sh`: Shell wrapper that activates venv and forwards to `print_cli.py`
 
 **Configuration:**
-- `config.yaml`: Central config for printer connection, server settings, font styles, dithering defaults, portrait pipeline settings
+- `config.yaml`: All settings -- printer connection, server host/port, font styles, dithering defaults, portrait pipeline config
 - `requirements.txt`: Python package dependencies
+- `setup.sh`: System setup and service installation
 
 **Core Logic:**
-- `printer_core.py`: `load_config()`, `connect()`, `Formatter` class
-- `templates.py`: All print layout functions (`receipt`, `simple_message`, `label`, `two_column_list`, `dictionary_entry`, `markdown`)
-- `md_renderer.py`: `render_markdown()` and markdown parsing/drawing internals
-- `image_printer.py`: `process_image()` and dithering functions (`_dither_floyd`, `_dither_bayer`, `_dither_halftone`)
-- `image_slicer.py`: `slice_vertical()`, `slice_horizontal()`
-- `portrait_pipeline.py`: `run_pipeline()`, `select_best_photo()`, `transform_to_statue()`, `detect_face_landmarks()`, `compute_zoom_crops()`
+- `printer_core.py`: `connect()` function and `Formatter` class -- the hardware abstraction
+- `templates.py`: All print layout functions -- `receipt()`, `simple_message()`, `label()`, `two_column_list()`, `dictionary_entry()`, `markdown()`
+- `md_renderer.py`: Markdown parser (`_parse_md()`, `_parse_inline()`) and image renderer (`render_markdown()`)
+- `image_printer.py`: Dithering pipeline -- `process_image()` is the public API, `_dither_*()` are the algorithms
+- `image_slicer.py`: `slice_vertical()` and `slice_horizontal()` for poster-size prints
+- `portrait_pipeline.py`: `run_pipeline()` orchestrates AI selection, style transfer, and multi-zoom printing
 
-**Web UI:**
-- `templates/index.html`: Single-page browser interface for markdown printing, image printing, and quick actions
+**Testing:**
+- `stress_test.sh`: Bash-based integration test suite (41 tests, curl-based)
+- No unit test files exist
 
 **Example Data:**
-- `example.md`: Sample markdown for testing the `md` command
-- `example_receipt.json`: Sample receipt data for testing the `receipt` command
-- `example_dictionary.json`: Sample dictionary entry for testing the `dictionary` command
+- `example_receipt.json`: Sample receipt data for testing `/print/receipt`
+- `example_dictionary.json`: Sample dictionary entry for testing `/print/dictionary`
+- `example.md`: Sample markdown content for testing `/print/markdown`
 
 ## Naming Conventions
 
 **Files:**
-- Python modules: `snake_case.py` (e.g., `print_cli.py`, `printer_core.py`, `image_printer.py`)
-- Shell scripts: `snake_case.sh` (e.g., `print.sh`, `run_portrait.sh`)
+- Python modules: `snake_case.py` (e.g., `printer_core.py`, `image_printer.py`, `md_renderer.py`)
+- Shell scripts: `snake_case.sh` (e.g., `print.sh`, `setup.sh`, `stress_test.sh`)
 - Config: `config.yaml` (single file, not split)
-- Fonts: Original casing from vendor (e.g., `Burra-Bold.ttf`, `Acidic.TTF`)
-- Example data: `example_*.json` or `example.md`
-- Preview output: `preview_*.png` (generated by dummy mode)
+- Fonts: Original names preserved (e.g., `Burra-Bold.ttf`, `Acidic.TTF`)
 
 **Functions:**
-- CLI command handlers: `cmd_<command>(args, config)` in `print_cli.py`
-- Template functions: descriptive names matching the template type (e.g., `receipt()`, `simple_message()`, `dictionary_entry()`)
-- Private helpers: `_` prefix (e.g., `_prepare()`, `_apply_blur()`, `_dither_floyd()`, `_render_dictionary_image()`)
-- Flask route functions: `print_<template>()` matching URL path
+- Public functions: `snake_case` (e.g., `process_image()`, `render_markdown()`, `load_config()`)
+- Private functions: `_snake_case` with leading underscore (e.g., `_prepare()`, `_apply_blur()`, `_dither_floyd()`)
+- CLI handlers: `cmd_<command>` (e.g., `cmd_test()`, `cmd_message()`, `cmd_receipt()`)
+- Template functions: descriptive noun/verb (e.g., `receipt()`, `simple_message()`, `label()`)
 
-**Config Sections:**
-- Top-level YAML keys name the feature or style: `printer`, `server`, `template`, `dictionary`, `helvetica`, `acidic`, `halftone`, `portrait`
+**Variables:**
+- Config sections: lowercase noun matching the feature (e.g., `printer`, `server`, `template`, `dictionary`, `halftone`, `portrait`, `helvetica`, `acidic`)
+- Constants: `_UPPER_CASE` with leading underscore (e.g., `_BAYER_8x8`, `_MODES`, `_INLINE_RE`, `_FONTS_DIR`)
+- Module globals: `_lower_case` with leading underscore (e.g., `_config`, `_printer`, `_dummy`, `_print_lock`)
+
+**Directories:**
+- Lowercase, short names: `fonts/`, `templates/`
+- Vendor dirs: Original casing preserved: `Printer/`
 
 ## Where to Add New Code
 
 **New Print Template:**
-1. Add template function in `templates.py` following signature `def my_template(fmt: Formatter, data, config):`
-2. Add CLI subcommand in `print_cli.py`: add parser under `sub.add_parser()`, add `cmd_my_template()` handler, add to `cmds` dict
-3. Add HTTP endpoint in `print_server.py`: add `@app.route("/print/my_template")` handler using `with_retry()`
+1. Add function in `templates.py` following the pattern: `def my_template(fmt: Formatter, data: dict, config: dict):`
+2. Add CLI subcommand in `print_cli.py`: add parser via `sub.add_parser()`, add `cmd_my_template()` handler, register in `cmds` dict
+3. Add HTTP endpoint in `print_server.py`: add `@app.route("/print/my_template", methods=["POST"])` handler using `with_retry()`
 
 **New Font Style:**
-1. Place font file(s) in `fonts/` directory
-2. Add a new top-level section in `config.yaml` copying the structure of `dictionary` or `helvetica` (font paths, sizes, spacing, margin, paper_px)
-3. The style is automatically available via `--style <name>` in the `md` command
+1. Add a new top-level section in `config.yaml` copying the `dictionary` block structure
+2. Point `font_*` keys to font file paths (relative to project root or absolute)
+3. Use the section name as the `style` parameter when calling `templates.markdown()`
 
 **New Dithering Mode:**
-1. Add dither function `_dither_<name>(grey: Image.Image) -> Image.Image` in `image_printer.py`
-2. Add entry to `_MODES` dict in `image_printer.py`
-3. Add choice to argparse in `print_cli.py` for `image` and `slice` commands
+1. Add dither function in `image_printer.py`: `def _dither_mymode(grey: Image.Image) -> Image.Image:`
+2. Register in `_MODES` dict at `image_printer.py` line 125
+3. Add to `choices` list in CLI argparse for `--mode` in `print_cli.py`
 
-**New HTTP Endpoint (non-template):**
-1. Add route function in `print_server.py` with `@app.route()` decorator
+**New Rendering Feature (markdown syntax):**
+1. Add parsing in `md_renderer._parse_md()` for block-level syntax
+2. Add inline pattern to `_INLINE_RE` regex in `md_renderer.py` for inline syntax
+3. Add rendering logic in `render_markdown()` draw loop
 
-**Utility Functions:**
-- Printer/formatting helpers: add to `printer_core.py` `Formatter` class
-- Image processing helpers: add to `image_printer.py`
-- Markdown rendering features: add to `md_renderer.py`
+**New Utility/Helper:**
+- Add as a new Python module at the project root (e.g., `my_helper.py`)
+- Import it from the modules that need it
+- There is no shared utils module -- each module is self-contained
+
+**New Font Files:**
+- Place in `fonts/` directory
+- Reference via relative path in `config.yaml` (e.g., `fonts/MyFont.ttf`)
 
 ## Special Directories
 
 **`venv/`:**
 - Purpose: Python virtual environment
-- Generated: Yes (`python3 -m venv venv`)
+- Generated: Yes (by `setup.sh` or manually)
 - Committed: No (in `.gitignore`)
 
 **`__pycache__/`:**
 - Purpose: Python bytecode cache
-- Generated: Yes (automatic)
+- Generated: Yes (by Python runtime)
 - Committed: No (in `.gitignore`)
 
 **`Printer/`:**
-- Purpose: Vendor printer drivers and tools (reference only)
-- Generated: No
-- Committed: Not currently tracked (untracked in git status)
+- Purpose: Vendor-provided printer drivers and test tools
+- Generated: No (shipped with hardware)
+- Committed: Yes
+- Note: Not used by application code -- reference material for hardware setup
 
-**`.claude/`:**
-- Purpose: Claude Code settings and worktree snapshots
-- Generated: Yes (by Claude Code)
-- Committed: Not currently tracked
+**`fonts/`:**
+- Purpose: Font files for image-based text rendering
+- Generated: No (curated font files)
+- Committed: Yes
+- Note: Three fonts bundled: Burra-Thin (body), Burra-Bold (headings), Acidic (display). Additional fonts can be added here and referenced from `config.yaml`
+
+**`templates/`:**
+- Purpose: Flask Jinja2 template directory (HTML for web UI)
+- Generated: No
+- Committed: Yes
+- Note: Contains only `index.html` -- the single-page web interface
+
+**`.planning/`:**
+- Purpose: GSD planning system documents
+- Generated: Partially
+- Committed: Yes
 
 ---
 
-*Structure analysis: 2026-03-07*
+*Structure analysis: 2026-03-08*
