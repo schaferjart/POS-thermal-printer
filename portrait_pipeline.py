@@ -308,7 +308,8 @@ def _dither_image(grey: Image.Image, mode: str, dot_size: int = 6) -> Image.Imag
 
 
 def print_portrait(image: Image.Image, config: dict, printer, dummy: bool = False,
-                   save_dir: str = None):
+                   save_dir: str = None,
+                   blur_override: float = None, dither_mode_override: str = None):
     """
     Print the transformed portrait at multiple zoom levels using face landmarks.
     """
@@ -317,8 +318,8 @@ def print_portrait(image: Image.Image, config: dict, printer, dummy: bool = Fals
     cfg = config.get("portrait", {})
     halftone_cfg = config.get("halftone", {})
 
-    blur = cfg.get("blur", 10)
-    dither_mode = cfg.get("dither_mode", "bayer")
+    blur = blur_override if blur_override is not None else cfg.get("blur", 10)
+    dither_mode = dither_mode_override if dither_mode_override is not None else cfg.get("dither_mode", "bayer")
     paper_px = halftone_cfg.get("paper_px", 576)
     contrast = halftone_cfg.get("contrast", 1.3)
     brightness = halftone_cfg.get("brightness", 1.0)
@@ -392,11 +393,6 @@ def run_pipeline(image_paths: list[str], config: dict, printer,
     """
     Run the full portrait pipeline: select -> transform -> print.
     """
-    if blur is not None:
-        config.setdefault("portrait", {})["blur"] = blur
-    if dither_mode is not None:
-        config.setdefault("portrait", {})["dither_mode"] = dither_mode
-
     # Stage A: Photo selection
     if len(image_paths) > 1 and not skip_selection:
         selected = select_best_photo(image_paths, config)
@@ -418,7 +414,8 @@ def run_pipeline(image_paths: list[str], config: dict, printer,
         print(f"[PORTRAIT] Saved raw transform: {raw_path}")
 
     # Stage C: Print at multiple zoom levels
-    print_portrait(image, config, printer, dummy=dummy, save_dir=save_dir)
+    print_portrait(image, config, printer, dummy=dummy, save_dir=save_dir,
+                   blur_override=blur, dither_mode_override=dither_mode)
 
     return selected, image
 

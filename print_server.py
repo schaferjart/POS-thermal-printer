@@ -32,6 +32,7 @@ import io
 import os
 import sys
 import time
+import signal
 import socket
 import atexit
 import argparse
@@ -379,6 +380,25 @@ def register_mdns(port):
         print(f"[WARN] Bonjour registration failed: {e} — server will still work via IP")
 
 
+def graceful_shutdown(signum, frame):
+    """Clean up mDNS and printer connection on SIGTERM/SIGINT."""
+    logger.info("Received signal %s, shutting down...", signum)
+    if _zeroconf:
+        try:
+            _zeroconf.unregister_all_services()
+            _zeroconf.close()
+            logger.info("mDNS deregistered")
+        except Exception:
+            pass
+    if _printer:
+        try:
+            _printer.close()
+            logger.info("Printer connection closed")
+        except Exception:
+            pass
+    sys.exit(0)
+
+
 def main():
     global _config, _printer, _dummy
 
@@ -404,6 +424,9 @@ def main():
     port = srv.get("port", 9100)
 
     register_mdns(port)
+
+    signal.signal(signal.SIGTERM, graceful_shutdown)
+    signal.signal(signal.SIGINT, graceful_shutdown)
 
     print(f"[INFO] Server listening on http://{host}:{port}")
     app.run(host=host, port=port, debug=False)
