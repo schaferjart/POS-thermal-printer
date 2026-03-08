@@ -18,9 +18,9 @@ Requirements for the hardening milestone. Each maps to roadmap phases.
 
 ### Code Quality
 
-- [ ] **QUAL-01**: Shared font path resolution extracted to single location (helpers.py), used by templates.py and md_renderer.py
-- [ ] **QUAL-02**: Shared wrap_text function extracted to single location, used by templates.py and md_renderer.py
-- [ ] **QUAL-03**: Shared image-open logic (EXIF transpose + alpha removal) extracted to single location, used by image_printer.py, image_slicer.py, portrait_pipeline.py
+- [x] **QUAL-01**: Shared font path resolution extracted to single location (helpers.py), used by templates.py and md_renderer.py
+- [x] **QUAL-02**: Shared wrap_text function extracted to single location, used by templates.py and md_renderer.py
+- [x] **QUAL-03**: Shared image-open logic (EXIF transpose + alpha removal) extracted to single location, used by image_printer.py, image_slicer.py, portrait_pipeline.py
 - [ ] **QUAL-04**: Raw ESC/POS commands in print_server.py moved into Formatter methods in printer_core.py
 - [ ] **QUAL-05**: Portrait pipeline config mutation bug fixed — no shared state leak between requests
 - [ ] **QUAL-06**: All server error responses use consistent structured JSON format: {"error": "message", "field": "name"}
@@ -87,9 +87,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | REL-04 | Phase 2 | Pending |
 | REL-05 | Phase 2 | Pending |
 | REL-06 | Phase 1 | Pending |
-| QUAL-01 | Phase 1 | Pending |
-| QUAL-02 | Phase 1 | Pending |
-| QUAL-03 | Phase 1 | Pending |
+| QUAL-01 | Phase 1 | Complete |
+| QUAL-02 | Phase 1 | Complete |
+| QUAL-03 | Phase 1 | Complete |
 | QUAL-04 | Phase 2 | Pending |
 | QUAL-05 | Phase 2 | Pending |
 | QUAL-06 | Phase 2 | Pending |
