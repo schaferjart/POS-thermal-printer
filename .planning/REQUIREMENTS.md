@@ -27,9 +27,9 @@ Requirements for the hardening milestone. Each maps to roadmap phases.
 
 ### Access Control
 
-- [ ] **AUTH-01**: Server checks X-Print-Key header against key in config.yaml on all print endpoints
-- [ ] **AUTH-02**: /health and / (web UI) endpoints are accessible without API key
-- [ ] **AUTH-03**: If no API key is configured in config.yaml, auth is disabled (backwards compatible)
+- [x] **AUTH-01**: Server checks X-Print-Key header against key in config.yaml on all print endpoints
+- [x] **AUTH-02**: /health and / (web UI) endpoints are accessible without API key
+- [x] **AUTH-03**: If no API key is configured in config.yaml, auth is disabled (backwards compatible)
 
 ### Testing
 
@@ -40,8 +40,8 @@ Requirements for the hardening milestone. Each maps to roadmap phases.
 
 ### Observability
 
-- [ ] **OBS-01**: /health endpoint reports printer connection status (connected/disconnected)
-- [ ] **OBS-02**: /health endpoint reports server uptime and last successful print timestamp
+- [x] **OBS-01**: /health endpoint reports printer connection status (connected/disconnected)
+- [x] **OBS-02**: /health endpoint reports server uptime and last successful print timestamp
 
 ## v2 Requirements
 
@@ -93,15 +93,15 @@ Deferred to future release. Tracked but not in current roadmap.
 | QUAL-04 | Phase 2 | Complete |
 | QUAL-05 | Phase 2 | Complete |
 | QUAL-06 | Phase 2 | Complete |
-| AUTH-01 | Phase 3 | Pending |
-| AUTH-02 | Phase 3 | Pending |
-| AUTH-03 | Phase 3 | Pending |
+| AUTH-01 | Phase 3 | Complete |
+| AUTH-02 | Phase 3 | Complete |
+| AUTH-03 | Phase 3 | Complete |
 | TEST-01 | Phase 4 | Pending |
 | TEST-02 | Phase 4 | Pending |
 | TEST-03 | Phase 4 | Pending |
 | TEST-04 | Phase 4 | Pending |
-| OBS-01 | Phase 3 | Pending |
-| OBS-02 | Phase 3 | Pending |
+| OBS-01 | Phase 3 | Complete |
+| OBS-02 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 21 total

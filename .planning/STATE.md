@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-03-08T23:20:14.650Z"
-last_activity: 2026-03-09 -- Completed 02-03-PLAN.md (Graceful shutdown, config mutation fix)
+status: in-progress
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-08T23:44:36.000Z"
+last_activity: 2026-03-09 -- Completed 03-01-PLAN.md (API key auth and enhanced health endpoint)
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-08)
 
 **Core value:** Any device on the network can send a print job and it prints correctly, every time.
-**Current focus:** Phase 2 - Server Hardening
+**Current focus:** Phase 3 - Access Control and Observability
 
 ## Current Position
 
-Phase: 2 of 4 (Server Hardening) -- COMPLETE
-Plan: 3 of 3 in current phase
-Status: Phase 2 Complete, ready for Phase 3
-Last activity: 2026-03-09 -- Completed 02-03-PLAN.md (Graceful shutdown, config mutation fix)
+Phase: 3 of 4 (Access Control and Observability)
+Plan: 1 of 1 in current phase
+Status: Phase 3 Plan 1 complete
+Last activity: 2026-03-09 -- Completed 03-01-PLAN.md (API key auth and enhanced health endpoint)
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 4 min
 - Total execution time: 0.4 hours
 
@@ -45,9 +45,10 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 1-Foundation | 2 | 10 min | 5 min |
 | 2-Server Hardening | 3 | 9 min | 3 min |
+| 3-Access Control | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (6 min), 01-02 (4 min), 02-01 (3 min), 02-02 (3 min), 02-03 (3 min)
+- Last 5 plans: 01-02 (4 min), 02-01 (3 min), 02-02 (3 min), 02-03 (3 min), 03-01 (3 min)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [02-02]: error_response() includes optional 'field' key only when a specific field name is relevant
 - [Phase 02]: Do not acquire _print_lock in signal handler to avoid deadlock
 - [Phase 02]: Pass blur/dither_mode as explicit override parameters rather than mutating shared config dict
+- [03-01]: hmac.compare_digest for timing-safe API key comparison
+- [03-01]: _PUBLIC_ENDPOINTS frozenset for O(1) lookup and immutability
+- [03-01]: api_key commented out by default -- backwards compatible, zero breaking changes
 
 ### Pending Todos
 
@@ -86,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T23:15:36.322Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-03-08T23:44:36Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
