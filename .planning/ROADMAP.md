@@ -42,7 +42,11 @@ Plans:
   3. After a mid-print exception, the next print job succeeds without manual intervention (Formatter state is reset via try/finally and ESC@ initialize)
   4. Sending SIGTERM to the server process results in mDNS deregistration and printer connection close before exit
   5. All error responses from the server use the same JSON format: {"error": "message", "field": "name"}
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 02-01-PLAN.md -- Add try/finally guards to all Formatter methods and create font_b_text
+- [ ] 02-02-PLAN.md -- Add input validation, MAX_CONTENT_LENGTH, ESC@ init, and error consistency to print_server.py
+- [ ] 02-03-PLAN.md -- Add SIGTERM graceful shutdown and fix portrait pipeline config mutation
 
 ### Phase 3: Access Control and Observability
 **Goal**: Print endpoints require an API key and the health endpoint reports real printer status
@@ -75,6 +79,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-08 |
-| 2. Server Hardening | 0/? | Not started | - |
+| 2. Server Hardening | 0/3 | Not started | - |
 | 3. Access Control and Observability | 0/? | Not started | - |
 | 4. Test Suite | 0/? | Not started | - |
