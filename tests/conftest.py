@@ -1,6 +1,7 @@
 """Shared test fixtures for the POS thermal printer test suite."""
 
 import os
+import time
 import tempfile
 
 import pytest
@@ -46,6 +47,7 @@ def app():
     }
     print_server._dummy = True
     print_server._printer = Dummy()
+    print_server._server_start_time = time.time()
     print_server.app.config["TESTING"] = True
     return print_server.app
 
@@ -54,3 +56,18 @@ def app():
 def client(app):
     """Flask test client for sending requests without a running server."""
     return app.test_client()
+
+
+@pytest.fixture
+def client_with_auth():
+    """Flask test client with API key authentication enabled."""
+    import print_server
+    print_server._config = {
+        "printer": {"vendor_id": 0x0, "product_id": 0x0, "paper_width": 48},
+        "server": {"port": 9100, "api_key": "test-secret-key"},
+    }
+    print_server._dummy = True
+    print_server._printer = Dummy()
+    print_server._server_start_time = time.time()
+    print_server.app.config["TESTING"] = True
+    return print_server.app.test_client()

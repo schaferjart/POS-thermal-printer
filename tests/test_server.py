@@ -214,3 +214,70 @@ class TestPortraitConfigNotMutated:
             source = f.read()
         assert "config.setdefault" not in source, \
             "portrait_pipeline.py still contains config.setdefault (config mutation)"
+
+
+class TestAuth:
+    """API key authentication when api_key is configured."""
+
+    def test_no_key_returns_401(self, client_with_auth):
+        resp = client_with_auth.post("/print/message", json={"text": "hi"})
+        assert resp.status_code == 401
+        data = resp.get_json()
+        assert "error" in data
+
+    def test_wrong_key_returns_401(self, client_with_auth):
+        resp = client_with_auth.post(
+            "/print/message",
+            json={"text": "hi"},
+            headers={"X-Print-Key": "wrong"},
+        )
+        assert resp.status_code == 401
+
+    def test_correct_key_returns_200(self, client_with_auth):
+        resp = client_with_auth.post(
+            "/print/message",
+            json={"text": "hi"},
+            headers={"X-Print-Key": "test-secret-key"},
+        )
+        assert resp.status_code == 200
+
+    def test_health_no_key_returns_200(self, client_with_auth):
+        resp = client_with_auth.get("/health")
+        assert resp.status_code == 200
+
+    def test_index_no_key_returns_200(self, client_with_auth):
+        resp = client_with_auth.get("/")
+        assert resp.status_code == 200
+
+
+class TestAuthDisabled:
+    """When no api_key is set in config, all endpoints are open."""
+
+    def test_no_key_config_allows_all(self, client):
+        resp = client.post("/print/message", json={"text": "hi"})
+        assert resp.status_code == 200
+
+
+class TestHealthEnhanced:
+    """Enhanced /health endpoint returns printer status, uptime, and last_print."""
+
+    def test_health_has_printer_field(self, client):
+        resp = client.get("/health")
+        data = resp.get_json()
+        assert "printer" in data
+
+    def test_health_has_uptime_field(self, client):
+        resp = client.get("/health")
+        data = resp.get_json()
+        assert "uptime_seconds" in data
+        assert isinstance(data["uptime_seconds"], (int, float))
+
+    def test_health_has_last_print_field(self, client):
+        resp = client.get("/health")
+        data = resp.get_json()
+        assert "last_print" in data
+
+    def test_health_dummy_mode_printer_status(self, client):
+        resp = client.get("/health")
+        data = resp.get_json()
+        assert data["printer"] == "dummy"
