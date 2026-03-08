@@ -27,7 +27,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. Font path resolution is called from a single helpers.py function -- templates.py and md_renderer.py both import it instead of having their own copies
   2. wrap_text and image-open logic (EXIF transpose + alpha removal) each exist in one place, imported by all consumers
   3. Server refuses to start if config.yaml is missing required keys (USB IDs, paper width, server port) and prints a clear error message naming the missing key
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md -- Extract resolve_font_path, wrap_text, open_image into helpers.py and update all consumers
+- [ ] 01-02-PLAN.md -- Add config validation to printer_core.py and wire into server startup
 
 ### Phase 2: Server Hardening
 **Goal**: Bad input returns clear errors, the printer never gets stuck in dirty state, and shutdown is clean
@@ -71,7 +74,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/2 | Planning complete | - |
 | 2. Server Hardening | 0/? | Not started | - |
 | 3. Access Control and Observability | 0/? | Not started | - |
 | 4. Test Suite | 0/? | Not started | - |
