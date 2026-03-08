@@ -57,7 +57,9 @@ Plans:
   2. The / (web UI) and /health endpoints respond successfully without any API key
   3. When no api_key is set in config.yaml, all endpoints work without authentication (backwards compatible)
   4. GET /health returns JSON with printer connection status (connected/disconnected), server uptime, and last successful print timestamp
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 03-01-PLAN.md -- Add before_request API key auth, enhance /health with printer status and uptime tracking
 
 ### Phase 4: Test Suite
 **Goal**: Automated tests verify rendering, validation, auth, and dithering without needing a physical printer
@@ -80,5 +82,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete | 2026-03-08 |
 | 2. Server Hardening | 3/3 | Complete | 2026-03-09 |
-| 3. Access Control and Observability | 0/? | Not started | - |
+| 3. Access Control and Observability | 0/1 | In progress | - |
 | 4. Test Suite | 0/? | Not started | - |
