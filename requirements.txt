@@ -18,3 +18,4 @@ six==1.17.0
 requests>=2.31
 Werkzeug==3.1.6
 zeroconf==0.146.0
+pytest>=7.0
