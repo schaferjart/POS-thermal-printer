@@ -71,7 +71,10 @@ Plans:
   3. Tests cover input validation for each endpoint (valid payloads succeed, missing fields return 400, oversized requests return 413)
   4. Tests cover API key auth (correct key passes, wrong key returns 401, missing key returns 401, no key configured means all requests pass)
   5. Tests cover image_printer dithering with known input images (output is 1-bit, correct dimensions)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 04-01-PLAN.md -- Unit tests for md_renderer parsing and rendering (TEST-01)
+- [ ] 04-02-PLAN.md -- Dithering tests for image_printer and valid-payload/image-endpoint tests for server (TEST-02, TEST-03, TEST-04)
 
 ## Progress
 
@@ -83,4 +86,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation | 2/2 | Complete | 2026-03-08 |
 | 2. Server Hardening | 3/3 | Complete | 2026-03-09 |
 | 3. Access Control and Observability | 0/1 | In progress | - |
-| 4. Test Suite | 0/? | Not started | - |
+| 4. Test Suite | 0/2 | Not started | - |
