@@ -38,6 +38,14 @@ if [ "$OS" = "Linux" ]; then
         sudo udevadm trigger
     fi
 
+    # Blacklist usblp kernel module so it doesn't grab the printer
+    BLACKLIST='/etc/modprobe.d/no-usblp.conf'
+    if [ ! -f "$BLACKLIST" ]; then
+        echo "==> Blacklisting usblp kernel module..."
+        echo 'blacklist usblp' | sudo tee "$BLACKLIST" > /dev/null
+        sudo rmmod usblp 2>/dev/null || true
+    fi
+
 elif [ "$OS" = "Darwin" ]; then
     echo "==> macOS: checking for python3..."
     if ! command -v python3 &>/dev/null; then

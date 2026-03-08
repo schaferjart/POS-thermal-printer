@@ -31,10 +31,13 @@ Send jobs via HTTP POST:
 import io
 import os
 import sys
+import time
 import socket
 import atexit
 import argparse
 import tempfile
+import threading
+import logging
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from zeroconf import ServiceInfo, Zeroconf
@@ -55,6 +58,9 @@ _config = None
 _printer = None
 _dummy = False
 _zeroconf = None
+_print_lock = threading.Lock()
+
+logger = logging.getLogger(__name__)
 
 
 def get_formatter():
@@ -66,17 +72,28 @@ def get_formatter():
 def reconnect():
     """Reconnect to the printer after a failed print."""
     global _printer
+    try:
+        _printer.close()
+    except Exception:
+        pass
+    time.sleep(0.5)
     _printer = connect(_config, dummy=_dummy)
     width = _config.get("printer", {}).get("paper_width", 48)
     return Formatter(_printer, width)
 
 
 def with_retry(fn):
-    """Run a print function, reconnecting once on failure."""
-    try:
-        fn(get_formatter())
-    except Exception:
-        fn(reconnect())
+    """Run a print function with mutex lock and reconnect on failure."""
+    with _print_lock:
+        try:
+            fn(get_formatter())
+        except Exception as e:
+            logger.warning("Print failed (%s), reconnecting...", e)
+            try:
+                fn(reconnect())
+            except Exception as e2:
+                logger.error("Retry also failed: %s", e2)
+                raise
 
 
 @app.route("/print/receipt", methods=["POST"])
@@ -283,6 +300,14 @@ def health():
 @app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
+
+
+@app.errorhandler(Exception)
+def handle_error(e):
+    """Return JSON error responses instead of HTML."""
+    code = getattr(e, "code", 500)
+    logger.error("Request error: %s", e)
+    return jsonify({"error": str(e)}), code
 
 
 def register_mdns(port):
