@@ -2,6 +2,10 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
-preview.png
-preview_md.png
-preview_helvetica.png
+.env*
+*.key
+preview*.png
+portrait_*.png
+.claude/
+.entire/
+Printer/
