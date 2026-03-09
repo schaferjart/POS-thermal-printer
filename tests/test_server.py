@@ -3,9 +3,11 @@ graceful shutdown, and portrait pipeline config safety."""
 
 import copy
 import json
+from io import BytesIO
 from unittest.mock import patch, MagicMock
 
 import pytest
+from PIL import Image
 
 
 class TestValidationMissingFields:
@@ -100,6 +102,72 @@ class TestValidRequestSucceeds:
         data = resp.get_json()
         assert data["status"] == "ok"
         assert data["template"] == "message"
+
+
+class TestValidPayloads:
+    """Valid payloads to receipt, label, list, dictionary, and markdown return 200."""
+
+    def test_receipt_valid(self, client):
+        resp = client.post("/print/receipt", json={
+            "items": [{"name": "Coffee", "qty": 1, "price": 3.50}]
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["template"] == "receipt"
+
+    def test_label_valid(self, client):
+        resp = client.post("/print/label", json={
+            "heading": "FRAGILE", "lines": ["Handle with care"]
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["template"] == "label"
+
+    def test_list_valid(self, client):
+        resp = client.post("/print/list", json={
+            "title": "Menu", "rows": [["Coffee", "3.50"]]
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["template"] == "list"
+
+    def test_dictionary_valid(self, client):
+        resp = client.post("/print/dictionary", json={
+            "word": "Test", "definition": "A trial"
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["template"] == "dictionary"
+
+    def test_markdown_valid(self, client):
+        resp = client.post("/print/markdown", json={"text": "# Hello"})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["template"] == "markdown"
+
+
+class TestImageEndpoint:
+    """Image endpoint returns 400 with no file and 200 with valid upload."""
+
+    def test_image_no_file_returns_400(self, client):
+        resp = client.post("/print/image")
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert "No file uploaded" in data["error"]
+
+    def test_image_valid_upload_returns_200(self, client):
+        img = Image.new("RGB", (100, 100), (128, 128, 128))
+        buf = BytesIO()
+        img.save(buf, format="JPEG")
+        buf.seek(0)
+        resp = client.post(
+            "/print/image",
+            data={"file": (buf, "test.jpg")},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["template"] == "image"
 
 
 class TestErrorResponseFormat:
