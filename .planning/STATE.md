@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-03-09T00:25:35.832Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-09T00:26:14.416Z"
 last_activity: 2026-03-09 -- Completed 04-02-PLAN.md (image_printer and server endpoint tests)
 progress:
   total_phases: 4
@@ -35,9 +35,9 @@ Progress: [██████████] 100%
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 4 min
-- Total execution time: 0.4 hours
+- Total plans completed: 8
+- Average duration: 3.5 min
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
@@ -46,14 +46,13 @@ Progress: [██████████] 100%
 | 1-Foundation | 2 | 10 min | 5 min |
 | 2-Server Hardening | 3 | 9 min | 3 min |
 | 3-Access Control | 1 | 3 min | 3 min |
+| 4-Test Suite | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (4 min), 02-01 (3 min), 02-02 (3 min), 02-03 (3 min), 03-01 (3 min)
+- Last 5 plans: 02-02 (3 min), 02-03 (3 min), 03-01 (3 min), 04-01 (2 min), 04-02 (3 min)
 - Trend: Stable
 
 *Updated after each plan completion*
-| Phase 04-test-suite P01 | 2 | 2 tasks | 1 files |
-| Phase 04-test-suite P02 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -80,6 +79,9 @@ Recent decisions affecting current work:
 - [03-01]: hmac.compare_digest for timing-safe API key comparison
 - [03-01]: _PUBLIC_ENDPOINTS frozenset for O(1) lookup and immutability
 - [03-01]: api_key commented out by default -- backwards compatible, zero breaking changes
+- [04-01]: _md_config() module helper instead of pytest fixture for self-contained test file
+- [04-01]: Bundled Burra fonts for cross-platform test reliability, show_date=False to avoid flaky tests
+- [04-01]: Image assertions check mode/width/height only -- no pixel comparison for platform variance
 - [Phase 04-02]: Use tobytes() instead of deprecated getdata() for pixel inspection in 1-bit images
 - [Phase 04-02]: Test dither output properties (mode, size, pixel presence) not exact pixel values (non-deterministic)
 
@@ -94,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T00:25:35.825Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-03-09T00:26:14.407Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None

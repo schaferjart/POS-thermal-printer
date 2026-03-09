@@ -33,7 +33,7 @@ Requirements for the hardening milestone. Each maps to roadmap phases.
 
 ### Testing
 
-- [ ] **TEST-01**: pytest test suite for md_renderer markdown parsing (headings, bold, italic, code, lists, blockquotes)
+- [x] **TEST-01**: pytest test suite for md_renderer markdown parsing (headings, bold, italic, code, lists, blockquotes)
 - [x] **TEST-02**: pytest tests for image_printer dithering functions with known inputs
 - [x] **TEST-03**: pytest tests for input validation (valid and invalid payloads for each endpoint)
 - [x] **TEST-04**: pytest tests for API key auth (with key, without key, wrong key, no key configured)
@@ -96,7 +96,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | AUTH-01 | Phase 3 | Complete |
 | AUTH-02 | Phase 3 | Complete |
 | AUTH-03 | Phase 3 | Complete |
-| TEST-01 | Phase 4 | Pending |
+| TEST-01 | Phase 4 | Complete |
 | TEST-02 | Phase 4 | Complete |
 | TEST-03 | Phase 4 | Complete |
 | TEST-04 | Phase 4 | Complete |
