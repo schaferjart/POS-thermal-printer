@@ -1,6 +1,8 @@
 """Unit tests for md_renderer.py — block parsing, inline parsing, and image rendering."""
 
-from md_renderer import _parse_md, _parse_inline
+from PIL import Image
+
+from md_renderer import _parse_md, _parse_inline, render_markdown
 
 
 # ── _parse_md block parsing ───────────────────────────────────────
@@ -100,3 +102,61 @@ class TestParseInline:
         segments = _parse_inline("normal **bold** *italic* ~~strike~~ `code` end")
         styles = {s for _, s in segments}
         assert {"normal", "bold", "italic", "strikethrough", "code"} == styles
+
+
+# ── render_markdown image output ──────────────────────────────────
+
+
+def _md_config():
+    """Return a dictionary-style config using bundled Burra fonts (works on all platforms)."""
+    return {
+        "dictionary": {
+            "font_word": "fonts/Burra-Bold.ttf",
+            "font_body": "fonts/Burra-Thin.ttf",
+            "font_cite": "fonts/Burra-Thin.ttf",
+            "font_date": "fonts/Burra-Thin.ttf",
+            "paper_px": 576,
+            "margin": 20,
+            "line_spacing": 1.4,
+            "gap_after_word": 30,
+            "size_word": 32,
+            "size_body": 20,
+            "size_cite": 18,
+            "size_date": 16,
+        }
+    }
+
+
+class TestRenderMarkdown:
+    """Verify render_markdown produces correct PIL Image properties."""
+
+    def test_render_returns_1bit_image(self):
+        """render_markdown returns a 1-bit PIL Image."""
+        img = render_markdown("# Hello\nWorld", config=_md_config(), show_date=False)
+        assert isinstance(img, Image.Image)
+        assert img.mode == "1"
+
+    def test_render_width_matches_paper(self):
+        """Rendered image width matches paper_px (576)."""
+        img = render_markdown("# Hello\nWorld", config=_md_config(), show_date=False)
+        assert img.size[0] == 576
+
+    def test_render_height_positive(self):
+        """Rendered image has non-zero height."""
+        img = render_markdown("# Hello\nWorld", config=_md_config(), show_date=False)
+        assert img.size[1] > 0
+
+    def test_render_empty_string(self):
+        """Empty string still produces a valid 1-bit image with positive height."""
+        img = render_markdown("", config=_md_config(), show_date=False)
+        assert isinstance(img, Image.Image)
+        assert img.mode == "1"
+        assert img.size[0] == 576
+        assert img.size[1] > 0
+
+    def test_render_complex_markdown_taller(self):
+        """Multi-block markdown produces a taller image than a single heading."""
+        simple = render_markdown("# Hello", config=_md_config(), show_date=False)
+        complex_md = "# Heading\n\n## Subheading\n\nParagraph text here.\n\n- List item\n\n> Blockquote\n\n---"
+        complex_img = render_markdown(complex_md, config=_md_config(), show_date=False)
+        assert complex_img.size[1] > simple.size[1]
