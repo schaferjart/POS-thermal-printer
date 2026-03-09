@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-08T23:49:23.044Z"
-last_activity: 2026-03-09 -- Completed 03-01-PLAN.md (API key auth and enhanced health endpoint)
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-09T00:25:35.832Z"
+last_activity: 2026-03-09 -- Completed 04-02-PLAN.md (image_printer and server endpoint tests)
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-08)
 
 **Core value:** Any device on the network can send a print job and it prints correctly, every time.
-**Current focus:** Phase 3 - Access Control and Observability
+**Current focus:** Phase 4 - Test Suite
 
 ## Current Position
 
-Phase: 3 of 4 (Access Control and Observability)
-Plan: 1 of 1 in current phase
-Status: Phase 3 Plan 1 complete
-Last activity: 2026-03-09 -- Completed 03-01-PLAN.md (API key auth and enhanced health endpoint)
+Phase: 4 of 4 (Test Suite)
+Plan: 2 of 2 in current phase
+Status: Phase 4 Plan 2 complete -- all plans done
+Last activity: 2026-03-09 -- Completed 04-02-PLAN.md (image_printer and server endpoint tests)
 
 Progress: [██████████] 100%
 
@@ -52,6 +52,8 @@ Progress: [██████████] 100%
 - Trend: Stable
 
 *Updated after each plan completion*
+| Phase 04-test-suite P01 | 2 | 2 tasks | 1 files |
+| Phase 04-test-suite P02 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +80,8 @@ Recent decisions affecting current work:
 - [03-01]: hmac.compare_digest for timing-safe API key comparison
 - [03-01]: _PUBLIC_ENDPOINTS frozenset for O(1) lookup and immutability
 - [03-01]: api_key commented out by default -- backwards compatible, zero breaking changes
+- [Phase 04-02]: Use tobytes() instead of deprecated getdata() for pixel inspection in 1-bit images
+- [Phase 04-02]: Test dither output properties (mode, size, pixel presence) not exact pixel values (non-deterministic)
 
 ### Pending Todos
 
@@ -90,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T23:44:36Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-09T00:25:35.825Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
