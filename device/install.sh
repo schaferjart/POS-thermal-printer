@@ -17,12 +17,16 @@ ZJ_COMMIT=${ZJ_COMMIT:-master}     # klirichek/zj-58; pin a sha once tested
 
 [ "$(id -u)" = 0 ] || { echo "run as root: sudo $0" >&2; exit 1; }
 log() { printf '\n== %s\n' "$*"; }
+# put FILE < content: write FILE; true only if that changed it
+put() { local t; t=$(mktemp); cat > "$t"
+        if cmp -s "$t" "$1"; then rm -f "$t"; return 1; fi
+        install -D -m 644 "$t" "$1"; rm -f "$t"; }
 
 log "packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q --no-install-recommends \
-  git cups cups-filters avahi-daemon libnss-mdns \
+  git curl iw cups cups-filters avahi-daemon libnss-mdns \
   python3 python3-venv python3-flask python3-pil python3-yaml python3-qrcode
 
 log "code in $DIR"
@@ -111,6 +115,19 @@ if grep -q '^\*cupsModelNumber: 560' "$PPD_Q"; then
   systemctl restart cups
 fi
 
+log "few SD card writes: journal in RAM, CUPS logs warnings only"
+# Swap is zram (in RAM) on Pi OS already: no swap file. printerd writes only
+# /var/lib/printer, and only when something changes.
+put /etc/systemd/journald.conf.d/printer.conf <<'EOF' && systemctl restart systemd-journald
+[Journal]
+Storage=volatile
+RuntimeMaxUse=16M
+EOF
+if ! grep -q '^LogLevel warn' /etc/cups/cupsd.conf; then
+  sed -i 's/^LogLevel .*/LogLevel warn/' /etc/cups/cupsd.conf
+  systemctl restart cups
+fi
+
 log "services"
 install -m 644 "$DIR/device/systemd/printerd.service"       /etc/systemd/system/
 install -m 644 "$DIR/device/systemd/printer-update.service" /etc/systemd/system/
@@ -119,5 +136,28 @@ systemctl daemon-reload
 systemctl enable --now printerd.service printer-update.timer >/dev/null
 systemctl restart printerd.service
 
+log "WiFi setup from a phone (comitup)"
+# No known WiFi in reach -> the printer opens the open WiFi printer-<serial>
+# (its cloud name) with comitup's page to pick a WiFi. Known WiFi, including
+# the one Raspberry Pi Imager wrote, keeps working: comitup tries every saved
+# WiFi first. comitup-web needs port 80 in hotspot mode: printerd lets go of
+# it while the hotspot is up (the dispatcher script tells it) and takes it
+# back on WiFi.
+SERIAL=$(tr -d '\0' < /sys/firmware/devicetree/base/serial-number 2>/dev/null || true)
+AP=printer-$(printf %s "$SERIAL" | tail -c 4 | tr 'A-Z' 'a-z')
+[ -n "$SERIAL" ] || AP='printer-<nnnn>'          # not a Pi: comitup picks a number
+install -m 755 "$DIR/device/nm-dispatcher.sh" /etc/NetworkManager/dispatcher.d/90-printer
+CONF_CHANGED=0
+put /etc/comitup.conf <<EOF && CONF_CHANGED=1
+# Written by $DIR/device/install.sh (options: man comitup-conf)
+ap_name: $AP
+EOF
+if ! dpkg -s comitup >/dev/null 2>&1; then
+  apt-get install -y -q --no-install-recommends -o Dpkg::Options::=--force-confold comitup
+elif [ "$CONF_CHANGED" = 1 ]; then
+  systemctl restart comitup      # stays on the current WiFi when it is a saved one
+fi
+
 log "done"
 echo "Print page: http://$NAME.local   AirPrint: Thermal printer 80mm @ $NAME"
+echo "No known WiFi: join the WiFi $AP from a phone to pick one"
