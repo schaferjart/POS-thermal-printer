@@ -564,7 +564,8 @@ def print_batch():
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    # force: python-escpos already called basicConfig() on import, which hid our INFO lines
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s", force=True)
     if CLOUD:
         threading.Thread(target=cloud_loop, daemon=True).start()
     else:
