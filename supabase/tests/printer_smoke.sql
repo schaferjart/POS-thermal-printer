@@ -13,12 +13,14 @@ begin
   begin perform 1 from printer.jobs;    log := log || 'FAIL jobs readable | ';    exception when insufficient_privilege then log := log || 'ok jobs denied | '; end;
   begin perform 1 from printer.devices; log := log || 'FAIL devices readable | '; exception when insufficient_privilege then log := log || 'ok devices denied | '; end;
   begin perform printer._hash('x');     log := log || 'FAIL _hash callable | ';   exception when insufficient_privilege then log := log || 'ok _hash denied | '; end;
+  begin perform printer._active_device('x'); log := log || 'FAIL _active_device callable | '; exception when insufficient_privilege then log := log || 'ok _active_device denied | '; end;
 
   -- 2. register -> inactive
   d := printer.register_device('test-printer');
   tok := d->>'token';
   r := printer.claim_jobs(tok);
   log := log || format('inactive claim active=%s | ', r->>'active');
+  log := log || format('check_device inactive=%s (want f) | ', printer.check_device(tok));
   begin perform printer.send_print('test', 'markdown', '{"body":"hi"}', 'test-printer'); log := log || 'FAIL inactive got job | ';
   exception when others then log := log || format('ok inactive send -> %s | ', sqlerrm); end;
 
@@ -26,6 +28,8 @@ begin
   reset role;
   update printer.devices set active = true, subscriptions = '{showmemo}', hourly_limit = 3 where pairing_code = d->>'pairing_code';
   set local role anon;
+  log := log || format('check_device active=%s (want t) wrong=%s (want f) | ',
+                       printer.check_device(tok), printer.check_device('wrong-token'));
 
   r := printer.send_print('showmemo', 'showmemo', '{"object_id":13802,"image_url":"https://x/y.jpg"}');
   r := printer.send_print('showmemo', 'showmemo', '{"object_id":13802,"image_url":"https://x/y.jpg"}');

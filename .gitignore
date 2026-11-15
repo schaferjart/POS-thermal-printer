@@ -10,3 +10,6 @@ portrait_*.png
 .entire/
 Printer/
 .venv/
+!renderer/.env.example
+renderer/models/
+.pytest_cache/

@@ -16,6 +16,12 @@ a Supabase project. Python, no build step.
   - `showmemo.py` — the ShowMeMo card (moved from schaferjart/showmemo-printer)
   - `index.html` — the print page; `config.yaml` — styles and defaults
   - `install.sh` (fresh Pi OS Lite -> printer), `update.sh` + `systemd/` units
+- `renderer/` — cloud portrait renderer (FastAPI, Docker on Coolify). `POST /portrait`:
+  photo + `X-Device-Token` -> wax transform (OpenRouter) -> MediaPipe face ->
+  4 shared-height crops -> 1-bit 576 px PNGs. Checks the token with
+  `printer.check_device` using the publishable key only. Settings in
+  `renderer/config.yaml`; model failure is an error, never the plain photo.
+  Test: `cd renderer && python3.12 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/python -m pytest -q tests`
 - `supabase/migrations/` — schema `printer` (devices, jobs, fonts) + its functions
 - `supabase/tests/printer_smoke.sql` — run in the SQL editor, rolls itself back
 
