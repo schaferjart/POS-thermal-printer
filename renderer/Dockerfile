@@ -5,8 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     MPLCONFIGDIR=/tmp/matplotlib \
     FACE_MODEL_PATH=/app/models/face_landmarker.task
 
-# libgl1 + libglib2.0-0: opencv (pulled in by mediapipe). curl: health check.
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl \
+# libgl1 + libglib2.0-0: opencv; libegl1 + libgles2: mediapipe 1.x C bindings. curl: health check.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 libglib2.0-0 libegl1 libgles2 curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
