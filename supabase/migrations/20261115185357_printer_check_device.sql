@@ -1,5 +1,3 @@
--- PLACEHOLDER TIMESTAMP: rename this file to the version Supabase records
--- when it is applied (see list_migrations), like every other migration here.
 --
 -- Lets a service that holds only the publishable key (the portrait renderer)
 -- check a device token. True only for an active (paired) device; false for an
