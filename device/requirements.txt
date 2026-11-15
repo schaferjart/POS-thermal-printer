@@ -1,0 +1,3 @@
+# Installed into /opt/printer/.venv by install.sh. Everything else comes
+# from Debian packages (python3-flask, -pil, -yaml, -qrcode).
+python-escpos==3.1

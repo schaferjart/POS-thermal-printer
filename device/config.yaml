@@ -1,0 +1,80 @@
+# Printer device configuration (shared by every printer built from this repo).
+# The device's own token lives in <state_dir>/device.json.
+
+# The cloud (your Supabase project) is configured outside the repo, in
+# /etc/printer/printer.env (see printer.env.example). Without it the printer
+# still does AirPrint and the print page, just no cloud jobs.
+poll_seconds: 10
+
+cups_queue: Thermal80
+ports: [80, 9100]          # 80: the page at http://print.local; 9100: old /print senders
+paper_px: 576              # 80mm @ 203 dpi
+state_dir: /var/lib/printer
+
+# ShowMeMo card (template "showmemo")
+showmemo:
+  variant: id              # id | title | header | header-top | id-top
+  max_pieces: null         # nth download prints n strips; set a number to cap
+
+# ── Markdown styles ────────────────────────────────────────────────
+
+dictionary:
+  font_word: "fonts/Burra-Bold.ttf"
+  font_body: "fonts/Burra-Thin.ttf"
+  font_cite: "fonts/Burra-Thin.ttf"
+  font_date: "fonts/Burra-Thin.ttf"
+  size_word: 32
+  size_body: 20
+  size_cite: 18
+  size_date: 16
+  line_spacing: 1.4        # multiplier on font size
+  gap_after_word: 30       # px between word and definition
+  gap_before_cite: 20      # px before citations
+  margin: 20               # left/right margin in px
+  paper_px: 576
+
+# Helvetica Neue look with Inter (free, OFL) so it renders the same on the Pi.
+helvetica:
+  font_word: "fonts/Inter-Bold.ttf"
+  font_body: "fonts/Inter-Light.ttf"
+  font_bold: "fonts/Inter-Bold.ttf"
+  font_cite: "fonts/Inter-Thin.ttf"
+  font_date: "fonts/Inter-ExtraLight.ttf"
+  size_word: 36
+  size_body: 22
+  size_cite: 19
+  size_date: 17
+  line_spacing: 1.5
+  gap_after_word: 29
+  gap_before_cite: 19
+  margin: 24
+  paper_px: 576
+
+# Big, raw, hard character-wrap
+acidic:
+  font_word: "fonts/Acidic.TTF"
+  font_body: "fonts/Acidic.TTF"
+  font_bold: "fonts/Acidic.TTF"
+  font_cite: "fonts/Acidic.TTF"
+  font_date: "fonts/Acidic.TTF"
+  size_word: 240
+  size_body: 200
+  size_cite: 180
+  size_date: 140
+  line_spacing: 1.2
+  gap_after_word: 80
+  gap_before_cite: 60
+  margin: 20
+  paper_px: 576
+  hard_wrap: true
+
+# ── Image defaults (templates "image" and "slices") ────────────────
+
+halftone:
+  paper_px: 576
+  mode: floyd              # floyd | bayer | halftone
+  dot_size: 6              # halftone cell size in px
+  contrast: 1.3
+  brightness: 1.0
+  sharpness: 1.2
+  blur: 0                  # gaussian blur radius (0 = off)

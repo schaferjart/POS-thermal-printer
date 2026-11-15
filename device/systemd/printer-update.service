@@ -1,0 +1,8 @@
+[Unit]
+Description=Update the printer from its git branch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/printer/device/update.sh
