@@ -225,16 +225,27 @@ def network() -> dict:
     return {"mode": "offline"}
 
 
+def hotspot_password() -> str:
+    """The setup hotspot's WPA2 password, written once by install.sh."""
+    try:
+        m = re.search(r"^ap_password:\s*(\S+)", Path("/etc/comitup.conf").read_text(), re.M)
+    except OSError:
+        return ""
+    return m[1] if m else ""
+
+
 def network_slip(net: dict) -> None:
     if net["mode"] == "hotspot":
-        ap = net["ssid"]
+        ap, pw = net["ssid"], hotspot_password()
+        join = f"join the WiFi **{ap}**, password **{pw}**" if pw else f"join the WiFi **{ap}**"
+        qr = f"WIFI:T:WPA;S:{ap};P:{pw};;" if pw else f"WIFI:T:nopass;S:{ap};;"
         slip(f"# WiFi setup\n\n**{device_name()}** found no WiFi it knows, so it opened "
              f"its own WiFi: **{ap}**\n\n"
-             f"1. On your phone, join the WiFi **{ap}** (or scan the code below).\n\n"
+             f"1. On your phone, {join} (or scan the code below).\n\n"
              f"2. A page opens (if not, open http://10.41.0.1). Pick your WiFi and enter "
              f"its password.\n\n"
              f"3. The printer joins it and prints \"Connected\".",
-             "hotspot", qr_data=f"WIFI:T:nopass;S:{ap};;", caption=f"Scan to join {ap}")
+             "hotspot", qr_data=qr, caption=f"Scan to join {ap}")
     else:
         slip(f"# Connected\n\n**{device_name()}** is on the WiFi **{net['ssid']}**\n\n"
              f"Print page: {page_url()}\n\nAirPrint: {AIRPRINT} @ {hostname()}", "network")

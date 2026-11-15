@@ -113,3 +113,16 @@ def test_slips_render(monkeypatch, tmp_path):
     printerd.network_slip({"mode": "wifi", "ssid": "Home"})
     pngs = sorted((tmp_path / "out").glob("*.png"))
     assert len(pngs) == 2
+
+
+def test_hotspot_slip_carries_password(monkeypatch):
+    import printerd
+    sent = {}
+    monkeypatch.setattr(printerd, "slip", lambda text, title, qr_data="", caption="": sent.update(text=text, qr=qr_data))
+    monkeypatch.setattr(printerd, "hotspot_password", lambda: "k7m2pq9x")
+    printerd.network_slip({"mode": "hotspot", "ssid": "printer-9be6"})
+    assert sent["qr"] == "WIFI:T:WPA;S:printer-9be6;P:k7m2pq9x;;"
+    assert "k7m2pq9x" in sent["text"]
+    monkeypatch.setattr(printerd, "hotspot_password", lambda: "")
+    printerd.network_slip({"mode": "hotspot", "ssid": "printer-9be6"})
+    assert sent["qr"] == "WIFI:T:nopass;S:printer-9be6;;"

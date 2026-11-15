@@ -137,7 +137,7 @@ systemctl enable --now printerd.service printer-update.timer >/dev/null
 systemctl restart printerd.service
 
 log "WiFi setup from a phone (comitup)"
-# No known WiFi in reach -> the printer opens the open WiFi printer-<serial>
+# No known WiFi in reach -> the printer opens its own WiFi printer-<serial>
 # (its cloud name) with comitup's page to pick a WiFi. Known WiFi, including
 # the one Raspberry Pi Imager wrote, keeps working: comitup tries every saved
 # WiFi first. comitup-web needs port 80 in hotspot mode: printerd lets go of
@@ -147,10 +147,16 @@ SERIAL=$(tr -d '\0' < /sys/firmware/devicetree/base/serial-number 2>/dev/null ||
 AP=printer-$(printf %s "$SERIAL" | tail -c 4 | tr 'A-Z' 'a-z')
 [ -n "$SERIAL" ] || AP='printer-<nnnn>'          # not a Pi: comitup picks a number
 install -m 755 "$DIR/device/nm-dispatcher.sh" /etc/NetworkManager/dispatcher.d/90-printer
+# The hotspot has its own password, made once and kept across installs. It is
+# printed on the setup slip (and inside its QR code), so only someone standing
+# at the printer can join. WPA2 needs 8+ characters; no look-alike letters.
+AP_PW=$(sed -n 's/^ap_password: *//p' /etc/comitup.conf 2>/dev/null || true)
+[ -n "$AP_PW" ] || AP_PW=$(python3 -c "import secrets; print(''.join(secrets.choice('abcdefghjkmnpqrstuvwxyz23456789') for _ in range(8)))")
 CONF_CHANGED=0
 put /etc/comitup.conf <<EOF && CONF_CHANGED=1
 # Written by $DIR/device/install.sh (options: man comitup-conf)
 ap_name: $AP
+ap_password: $AP_PW
 EOF
 if ! dpkg -s comitup >/dev/null 2>&1; then
   apt-get install -y -q --no-install-recommends -o Dpkg::Options::=--force-confold comitup
