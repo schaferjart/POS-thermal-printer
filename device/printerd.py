@@ -24,8 +24,8 @@ import socket
 import subprocess
 import threading
 import time
-import urllib.error
-import urllib.request
+import http.client
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
@@ -244,7 +244,9 @@ def network_slip(net: dict) -> None:
              f"1. On your phone, {join} (or scan the code below).\n\n"
              f"2. A page opens (if not, open http://10.41.0.1). Pick your WiFi and enter "
              f"its password.\n\n"
-             f"3. The printer joins it and prints \"Connected\".",
+             f"3. The printer joins it and prints \"Connected\".\n\n"
+             f"Using a phone's hotspot as the WiFi? The printer only sees 2.4 GHz: on an "
+             f"iPhone turn on Maximize Compatibility, on Android choose the 2.4 GHz band.",
              "hotspot", qr_data=qr, caption=f"Scan to join {ap}")
     else:
         slip(f"# Connected\n\n**{device_name()}** is on the WiFi **{net['ssid']}**\n\n"
@@ -259,29 +261,59 @@ _net_lock = threading.Lock()
 _page_wanted = threading.Event()     # serve the page port? (not while the hotspot is up)
 
 
+HOTSPOT_GRACE = 600              # lost a known WiFi: wait this long before printing help
+HOTSPOT_SLIP_EVERY = 24 * 3600   # and print the setup slip at most once a day
+_hotspot_since: float | None = None
+
+
+def _schedule(delay: float, fn) -> None:
+    t = threading.Timer(delay, fn)
+    t.daemon = True
+    t.start()
+
+
 def network_sync() -> None:
+    global _hotspot_since
     with _net_lock:
         net = network()
         if net["mode"] == "hotspot":
             _page_wanted.clear()
         else:
             _page_wanted.set()
+            _hotspot_since = None
         if net["mode"] == "offline":
             return
         try:
-            last = json.loads(_net_file().read_text())
+            saved = json.loads(_net_file().read_text())
         except (OSError, ValueError):
-            last = None
+            saved = {}
+        last = {k: saved[k] for k in ("mode", "ssid") if k in saved} or None
         if net == last:
             return
+        now = time.time()
+        if net["mode"] == "hotspot":
+            if last and last["mode"] == "wifi":
+                # It had a WiFi. Phone hotspots come and go, and comitup passes
+                # through its own hotspot on every start: only print the setup
+                # slip when the WiFi stays gone.
+                if _hotspot_since is None:
+                    _hotspot_since = now
+                    _schedule(HOTSPOT_GRACE + 5, network_sync)
+                    return
+                if now - _hotspot_since < HOTSPOT_GRACE:
+                    return
+            if now - saved.get("hotspot_slip_at", 0) < HOTSPOT_SLIP_EVERY:
+                return                        # not saved: back on the old WiFi = no slip
         log.info("network: %s", net)
         try:
             network_slip(net)
         except Exception as e:                # not saved: the next change tries again
             log.error("network slip failed: %s", e)
             return
+        rec = dict(net, hotspot_slip_at=now if net["mode"] == "hotspot"
+                   else saved.get("hotspot_slip_at", 0))
         STATE.mkdir(parents=True, exist_ok=True)
-        _net_file().write_text(json.dumps(net))
+        _net_file().write_text(json.dumps(rec))
 
 
 # ── cloud ─────────────────────────────────────────────────────────
@@ -290,19 +322,43 @@ class UnknownDevice(Exception):
     pass
 
 
+_conn: http.client.HTTPConnection | None = None
+_conn_lock = threading.Lock()
+
+
+def _post(path: str, body: bytes) -> tuple[int, bytes]:
+    """POST over one kept-open connection. A fresh TLS handshake per poll costs
+    ~6 KB, which adds up on a phone hotspot's data plan."""
+    global _conn
+    u = urllib.parse.urlsplit(CLOUD_URL)
+    headers = {"apikey": CLOUD_KEY, "Content-Profile": "printer",
+               "Content-Type": "application/json"}
+    with _conn_lock:
+        for attempt in (1, 2):              # the server may have closed an idle one
+            try:
+                if _conn is None:
+                    cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+                    _conn = cls(u.hostname, u.port, timeout=30)
+                _conn.request("POST", u.path.rstrip("/") + path, body=body, headers=headers)
+                r = _conn.getresponse()
+                return r.status, r.read()
+            except (http.client.HTTPException, OSError):
+                if _conn is not None:
+                    _conn.close()
+                _conn = None
+                if attempt == 2:
+                    raise
+    raise RuntimeError("unreachable")
+
+
 def rpc(fn: str, **args):
-    req = urllib.request.Request(
-        f"{CLOUD_URL}/rest/v1/rpc/{fn}", data=json.dumps(args).encode(), method="POST",
-        headers={"apikey": CLOUD_KEY, "Content-Profile": "printer",
-                 "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
+    code, data = _post(f"/rest/v1/rpc/{fn}", json.dumps(args).encode())
+    if code >= 400:
+        body = data.decode(errors="replace")
         if "unknown_device" in body:
             raise UnknownDevice(body)
-        raise RuntimeError(f"{fn}: HTTP {e.code} {body[:300]}")
+        raise RuntimeError(f"{fn}: HTTP {code} {body[:300]}")
+    return json.loads(data) if data else None
 
 
 def _device_file() -> Path:
@@ -364,7 +420,7 @@ def cloud_tick(dev: dict) -> dict:
     _dev = dev if r["active"] else None
     if _dev and time.time() - _fonts_synced > FONT_SYNC_SECONDS:
         sync_fonts()
-    return dev
+    return dev, bool(r["jobs"])
 
 
 # ── fonts shared through the cloud ────────────────────────────────
@@ -419,11 +475,16 @@ def sync_fonts() -> None:
 
 
 def cloud_loop() -> None:
-    dev = None
+    # Right after a job, look again soon (more strips, a burst from an app);
+    # when idle, back off to poll_idle_seconds: a job then waits at most that
+    # long, and a quiet day costs a phone hotspot little data.
+    fast, idle = CFG.get("poll_seconds", 10), CFG.get("poll_idle_seconds", 60)
+    dev, wait = None, fast
     while True:
+        busy = False
         try:
             dev = dev or load_device()
-            dev = cloud_tick(dev)
+            dev, busy = cloud_tick(dev)
         except UnknownDevice:
             log.warning("device unknown to the cloud, registering again")
             _device_file().unlink(missing_ok=True)
@@ -431,7 +492,8 @@ def cloud_loop() -> None:
         except Exception as e:
             status.update(cloud="error", last_error=str(e)[:300])
             log.warning("cloud: %s", e)
-        time.sleep(CFG.get("poll_seconds", 10))
+        wait = fast if busy else min(wait * 2, idle)
+        time.sleep(wait)
 
 
 # ── local HTTP ────────────────────────────────────────────────────

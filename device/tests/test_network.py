@@ -55,17 +55,29 @@ def test_network_without_iw(monkeypatch):
 
 
 def test_one_slip_per_change_and_port_80_handover(monkeypatch, slips):
+    clock = [1_000_000.0]
+    monkeypatch.setattr(printerd.time, "time", lambda: clock[0])
+    monkeypatch.setattr(printerd, "_hotspot_since", None)
+    scheduled = []
+    monkeypatch.setattr(printerd, "_schedule", lambda delay, fn: scheduled.append(delay))
+
     use(monkeypatch, HOME)
     printerd.network_sync()
     printerd.network_sync()                       # same WiFi again (e.g. reboot): nothing
     assert slips == [{"mode": "wifi", "ssid": "Home Café"}]
     assert printerd._page_wanted.is_set()
 
-    use(monkeypatch, HOTSPOT)
+    use(monkeypatch, HOTSPOT)                     # lost the WiFi: wait before helping
     printerd.network_sync()
+    assert len(slips) == 1 and scheduled == [printerd.HOTSPOT_GRACE + 5]
+    assert not printerd._page_wanted.is_set()     # port 80 is comitup-web's now
+    clock[0] += 300
+    printerd.network_sync()                       # still within the grace period
+    assert len(slips) == 1
+    clock[0] += 400
+    printerd.network_sync()                       # gone for >10 min: setup slip
     printerd.network_sync()                       # comitup re-raises the hotspot: nothing
     assert slips[1:] == [{"mode": "hotspot", "ssid": "printer-9be6"}]
-    assert not printerd._page_wanted.is_set()     # port 80 is comitup-web's now
 
     use(monkeypatch, NOTHING)                     # between the two (connecting): no slip
     printerd.network_sync()
@@ -75,6 +87,53 @@ def test_one_slip_per_change_and_port_80_handover(monkeypatch, slips):
     printerd.network_sync()
     assert slips[2:] == [{"mode": "wifi", "ssid": "Home Café"}]
     assert printerd._page_wanted.is_set()
+
+    use(monkeypatch, HOTSPOT)                     # a phone hotspot that comes and goes:
+    printerd.network_sync()                       # at most one setup slip a day
+    clock[0] += 700
+    printerd.network_sync()
+    assert len(slips) == 3
+    use(monkeypatch, HOME)                        # back before a slip: no "Connected" either
+    printerd.network_sync()
+    assert len(slips) == 3
+
+
+def test_fresh_printer_gets_setup_slip_at_once(monkeypatch, slips):
+    monkeypatch.setattr(printerd, "_hotspot_since", None)
+    use(monkeypatch, HOTSPOT)
+    printerd.network_sync()
+    assert slips == [{"mode": "hotspot", "ssid": "printer-9be6"}]
+
+
+def test_cloud_connection_is_kept_open(monkeypatch):
+    made = []
+
+    class Conn:
+        def __init__(self, host, port, timeout):
+            made.append(host)
+            self.n = 0
+        def request(self, method, path, body, headers):
+            self.n += 1
+            if len(made) == 1 and self.n == 3:
+                raise ConnectionResetError("server closed the idle connection")
+            self.path = path
+        def getresponse(self):
+            class R:
+                status = 200
+                def read(self):
+                    return b'{"ok": true}'
+            return R()
+        def close(self):
+            pass
+
+    monkeypatch.setattr(printerd, "CLOUD_URL", "https://example.supabase.co")
+    monkeypatch.setattr(printerd, "_conn", None)
+    monkeypatch.setattr(printerd.http.client, "HTTPSConnection", Conn)
+    assert printerd.rpc("claim_jobs", device_token="t") == {"ok": True}
+    assert printerd.rpc("claim_jobs", device_token="t") == {"ok": True}
+    assert made == ["example.supabase.co"]        # two calls, one connection
+    assert printerd.rpc("claim_jobs", device_token="t") == {"ok": True}
+    assert len(made) == 2                         # closed by the server: reconnected once
 
 
 def test_failed_slip_is_retried(monkeypatch, tmp_path):

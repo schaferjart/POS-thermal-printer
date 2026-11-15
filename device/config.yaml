@@ -4,7 +4,8 @@
 # The cloud (your Supabase project) is configured outside the repo, in
 # /etc/printer/printer.env (see printer.env.example). Without it the printer
 # still does AirPrint and the print page, just no cloud jobs.
-poll_seconds: 10
+poll_seconds: 10          # right after a job
+poll_idle_seconds: 60     # when nothing happens (spares phone-hotspot data)
 
 cups_queue: Thermal80
 ports: [80, 9100]          # 80: the page at http://print.local; 9100: old /print senders
