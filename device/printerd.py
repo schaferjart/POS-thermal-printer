@@ -2,6 +2,8 @@
 """The printer service.
 
 - Serves the print page and a small local API on :9100.
+- Lets go of port 80 while comitup's WiFi-setup hotspot is up, and prints
+  a slip when the WiFi changes (see "network").
 - Pulls jobs from the cloud (printer.claim_jobs) every few seconds.
 - Never opens USB: every print is rendered to ESC/POS bytes with
   python-escpos and handed to CUPS with `lp -d <queue> -o raw`.
@@ -32,6 +34,7 @@ import yaml
 from escpos.printer import Dummy
 from flask import Flask, jsonify, request, send_file
 from PIL import Image, ImageFont
+from werkzeug.serving import make_server
 
 import jobs
 
@@ -172,12 +175,14 @@ def page_qr_url() -> str:
     return f"http://{local_ip()}{_port_suffix()}"
 
 
-def slip(markdown_text: str, title: str) -> None:
-    """A status slip: the text, then a QR code that opens the print page."""
+def slip(markdown_text: str, title: str, qr_data: str = "", caption: str = "") -> None:
+    """A status slip: the text, then a QR code (by default: open the print page)."""
+    qr_data = qr_data or page_qr_url()
+    caption = caption or f"Scan to open the print page\n\n{page_qr_url()}"
     text = jobs.render(CFG, "markdown", {"body": markdown_text, "style": "helvetica",
                                          "show_date": False}).images[0]
-    qr = qrcode.make(page_qr_url(), box_size=7, border=3).get_image().convert("1")
-    url = jobs.render(CFG, "markdown", {"body": f"Scan to open the print page\n\n{page_qr_url()}",
+    qr = qrcode.make(qr_data, box_size=7, border=3).get_image().convert("1")
+    url = jobs.render(CFG, "markdown", {"body": caption,
                                         "style": "helvetica", "show_date": False}).images[0]
     out = Image.new("1", (PAPER, text.height + qr.height + url.height), 1)
     out.paste(text, (0, 0))
@@ -190,6 +195,82 @@ def test_page() -> None:
     slip(f"# Test print\n\n**{device_name()}**\n\n"
          f"Print page: {page_url()}\n\nAirPrint: {AIRPRINT} @ {hostname()}\n\n"
          f"IP: {local_ip()}\n\n---\n\nIf you can read this, the printer works.", "test")
+
+
+# ── network: WiFi or own hotspot (comitup) ────────────────────────
+# comitup (install.sh) joins a known WiFi, or opens the hotspot <device_name()>
+# with its WiFi picker (comitup-web) on port 80. While the hotspot is up,
+# printerd lets go of its page port so comitup-web can have it. A
+# NetworkManager dispatcher script POSTs /network on every WiFi change; we
+# then look at what wlan0 really does, and print a slip when that differs
+# from the last one announced (kept in <state>/network.json, so a reboot on
+# the same WiFi prints nothing).
+
+def _nmcli(*args: str) -> list[str]:
+    r = subprocess.run(["nmcli", "-g", *args], capture_output=True, text=True, timeout=10)
+    return [ln.replace("\\:", ":").replace("\\\\", "\\") for ln in r.stdout.splitlines()]
+
+
+def network() -> dict:
+    """{"mode": "wifi"|"hotspot", "ssid": ...}, or {"mode": "offline"}."""
+    try:
+        for line in _nmcli("UUID,TYPE,STATE", "connection", "show", "--active"):
+            uuid, typ, state = line.split(":")[:3]       # none of these contain ':'
+            if typ == "802-11-wireless" and state == "activated":
+                mode, ssid = _nmcli("802-11-wireless.mode,802-11-wireless.ssid",
+                                    "connection", "show", "uuid", uuid)[:2]
+                return {"mode": "hotspot" if mode == "ap" else "wifi", "ssid": ssid}
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        pass
+    return {"mode": "offline"}
+
+
+def network_slip(net: dict) -> None:
+    if net["mode"] == "hotspot":
+        ap = net["ssid"]
+        slip(f"# WiFi setup\n\n**{device_name()}** found no WiFi it knows, so it opened "
+             f"its own WiFi: **{ap}**\n\n"
+             f"1. On your phone, join the WiFi **{ap}** (or scan the code below).\n\n"
+             f"2. A page opens (if not, open http://10.41.0.1). Pick your WiFi and enter "
+             f"its password.\n\n"
+             f"3. The printer joins it and prints \"Connected\".",
+             "hotspot", qr_data=f"WIFI:T:nopass;S:{ap};;", caption=f"Scan to join {ap}")
+    else:
+        slip(f"# Connected\n\n**{device_name()}** is on the WiFi **{net['ssid']}**\n\n"
+             f"Print page: {page_url()}\n\nAirPrint: {AIRPRINT} @ {hostname()}", "network")
+
+
+def _net_file() -> Path:
+    return STATE / "network.json"
+
+
+_net_lock = threading.Lock()
+_page_wanted = threading.Event()     # serve the page port? (not while the hotspot is up)
+
+
+def network_sync() -> None:
+    with _net_lock:
+        net = network()
+        if net["mode"] == "hotspot":
+            _page_wanted.clear()
+        else:
+            _page_wanted.set()
+        if net["mode"] == "offline":
+            return
+        try:
+            last = json.loads(_net_file().read_text())
+        except (OSError, ValueError):
+            last = None
+        if net == last:
+            return
+        log.info("network: %s", net)
+        try:
+            network_slip(net)
+        except Exception as e:                # not saved: the next change tries again
+            log.error("network slip failed: %s", e)
+            return
+        STATE.mkdir(parents=True, exist_ok=True)
+        _net_file().write_text(json.dumps(net))
 
 
 # ── cloud ─────────────────────────────────────────────────────────
@@ -322,7 +403,8 @@ def sync_fonts() -> None:
         (FONTS / name).unlink(missing_ok=True)
         del m[name]
         log.info("font %s removed (deleted in cloud)", name)
-    _save_manifest(m)
+    if m != _manifest():                 # only on change: spare the SD card
+        _save_manifest(m)
 
 
 def cloud_loop() -> None:
@@ -391,6 +473,15 @@ def print_image():
 @app.post("/print/slices")
 def print_slices():
     return _local("slices")
+
+
+@app.post("/network")
+def network_changed():
+    """Called by the NetworkManager dispatcher script; local callers only."""
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        return jsonify(error="local only"), 403
+    threading.Thread(target=network_sync, daemon=True).start()
+    return jsonify(status="ok")
 
 
 @app.post("/print/test")
@@ -478,11 +569,31 @@ def main():
         threading.Thread(target=cloud_loop, daemon=True).start()
     else:
         status["cloud"] = "off (no /etc/printer/printer.env)"
-    from werkzeug.serving import make_server
-    for port in PORTS[1:]:              # e.g. 9100 for old /print senders
+    for port in PORTS[1:]:              # e.g. 9100 for old /print senders (always on)
         srv = make_server("0.0.0.0", port, app, threaded=True)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
-    app.run(host="0.0.0.0", port=PORTS[0], threaded=True)
+    network_sync()                      # before taking port 80: are we the hotspot?
+    page_server_loop()
+
+
+def page_server_loop() -> None:
+    """Serve the page port (80) unless the hotspot is up, then comitup-web
+    needs it. Retries while someone else still holds it."""
+    srv, warned = None, False
+    while True:
+        if _page_wanted.is_set() and not srv:
+            try:
+                srv = make_server("0.0.0.0", PORTS[0], app, threaded=True)
+                threading.Thread(target=srv.serve_forever, daemon=True).start()
+                log.info("page on port %s", PORTS[0]); warned = False
+            except (OSError, SystemExit) as e:    # werkzeug exits when the port is taken
+                srv = None
+                if not warned:
+                    log.warning("port %s busy (%s), retrying", PORTS[0], e); warned = True
+        elif not _page_wanted.is_set() and srv:
+            srv.shutdown(); srv.server_close(); srv = None
+            log.info("hotspot up: port %s left to comitup-web", PORTS[0])
+        time.sleep(2)
 
 
 if __name__ == "__main__":
