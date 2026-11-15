@@ -1,4 +1,4 @@
-"""WiFi / hotspot handling: what nmcli says -> port 80 on or off, one slip per change."""
+"""WiFi / hotspot handling: what `iw dev` says -> port 80 on or off, one slip per change."""
 
 import subprocess
 
@@ -7,23 +7,23 @@ import pytest
 import printerd
 
 
-def nmcli_fake(active, settings):
-    """active: lines of `nmcli -g UUID,TYPE,STATE con show --active`;
-    settings: uuid -> (mode, ssid)."""
+def iw_fake(out: bytes):
     def run(cmd, **kw):
-        assert cmd[0] == "nmcli"
-        if "--active" in cmd:
-            out = "\n".join(active)
-        else:
-            mode, ssid = settings[cmd[-1]]
-            out = f"{mode}\n{ssid}"
-        return subprocess.CompletedProcess(cmd, 0, out + "\n", "")
+        assert cmd == ["iw", "dev"]
+        return subprocess.CompletedProcess(cmd, 0, out, b"")
     return run
 
 
-HOME = ["5eeb:802-11-wireless:activated", "75a1:802-3-ethernet:activated"]
-HOTSPOT = ["c0ff:802-11-wireless:activated"]
-SETTINGS = {"5eeb": ("infrastructure", "Home\\:Net"), "c0ff": ("ap", "printer-9be6")}
+def iw(ssid: bytes, typ: str) -> bytes:
+    return (b"phy#0\n\tUnnamed/non-netdev interface\n\t\twdev 0x2\n\t\ttype P2P-device\n"
+            b"\tInterface wlan0\n\t\tifindex 3\n\t\twdev 0x1\n\t\taddr b8:27:eb:00:00:01\n"
+            + (b"\t\tssid " + ssid + b"\n" if ssid else b"")
+            + b"\t\ttype " + typ.encode() + b"\n\t\twiphy 0\n\t\ttxpower 31.00 dBm\n")
+
+
+HOME = iw(b"Home Caf\\xc3\\xa9", "managed")       # iw escapes non-ASCII bytes
+HOTSPOT = iw(b"printer-9be6", "AP")
+NOTHING = iw(b"", "managed")
 
 
 @pytest.fixture
@@ -34,22 +34,22 @@ def slips(monkeypatch, tmp_path):
     return printed
 
 
-def use(monkeypatch, active):
-    monkeypatch.setattr(printerd.subprocess, "run", nmcli_fake(active, SETTINGS))
+def use(monkeypatch, out):
+    monkeypatch.setattr(printerd.subprocess, "run", iw_fake(out))
 
 
 def test_network_parses_wifi_and_hotspot(monkeypatch):
     use(monkeypatch, HOME)
-    assert printerd.network() == {"mode": "wifi", "ssid": "Home:Net"}
+    assert printerd.network() == {"mode": "wifi", "ssid": "Home Café"}
     use(monkeypatch, HOTSPOT)
     assert printerd.network() == {"mode": "hotspot", "ssid": "printer-9be6"}
-    use(monkeypatch, ["c0ff:802-11-wireless:activating"])
+    use(monkeypatch, NOTHING)
     assert printerd.network() == {"mode": "offline"}
 
 
-def test_network_without_nmcli(monkeypatch):
+def test_network_without_iw(monkeypatch):
     def boom(*a, **k):
-        raise FileNotFoundError("nmcli")
+        raise FileNotFoundError("iw")
     monkeypatch.setattr(printerd.subprocess, "run", boom)
     assert printerd.network() == {"mode": "offline"}
 
@@ -58,7 +58,7 @@ def test_one_slip_per_change_and_port_80_handover(monkeypatch, slips):
     use(monkeypatch, HOME)
     printerd.network_sync()
     printerd.network_sync()                       # same WiFi again (e.g. reboot): nothing
-    assert slips == [{"mode": "wifi", "ssid": "Home:Net"}]
+    assert slips == [{"mode": "wifi", "ssid": "Home Café"}]
     assert printerd._page_wanted.is_set()
 
     use(monkeypatch, HOTSPOT)
@@ -67,13 +67,13 @@ def test_one_slip_per_change_and_port_80_handover(monkeypatch, slips):
     assert slips[1:] == [{"mode": "hotspot", "ssid": "printer-9be6"}]
     assert not printerd._page_wanted.is_set()     # port 80 is comitup-web's now
 
-    use(monkeypatch, [])                          # between the two: no slip, page stays as is
+    use(monkeypatch, NOTHING)                     # between the two (connecting): no slip
     printerd.network_sync()
     assert len(slips) == 2
 
     use(monkeypatch, HOME)
     printerd.network_sync()
-    assert slips[2:] == [{"mode": "wifi", "ssid": "Home:Net"}]
+    assert slips[2:] == [{"mode": "wifi", "ssid": "Home Café"}]
     assert printerd._page_wanted.is_set()
 
 

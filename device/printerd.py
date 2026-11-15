@@ -206,22 +206,22 @@ def test_page() -> None:
 # from the last one announced (kept in <state>/network.json, so a reboot on
 # the same WiFi prints nothing).
 
-def _nmcli(*args: str) -> list[str]:
-    r = subprocess.run(["nmcli", "-g", *args], capture_output=True, text=True, timeout=10)
-    return [ln.replace("\\:", ":").replace("\\\\", "\\") for ln in r.stdout.splitlines()]
-
-
 def network() -> dict:
-    """{"mode": "wifi"|"hotspot", "ssid": ...}, or {"mode": "offline"}."""
+    """{"mode": "wifi"|"hotspot", "ssid": ...}, or {"mode": "offline"}.
+    Asks the kernel (`iw dev`), not NetworkManager: NM's D-Bus API refuses
+    printerd's DynamicUser (no nss-systemd on Pi OS Lite)."""
     try:
-        for line in _nmcli("UUID,TYPE,STATE", "connection", "show", "--active"):
-            uuid, typ, state = line.split(":")[:3]       # none of these contain ':'
-            if typ == "802-11-wireless" and state == "activated":
-                mode, ssid = _nmcli("802-11-wireless.mode,802-11-wireless.ssid",
-                                    "connection", "show", "uuid", uuid)[:2]
-                return {"mode": "hotspot" if mode == "ap" else "wifi", "ssid": ssid}
-    except (OSError, subprocess.TimeoutExpired, ValueError):
-        pass
+        out = subprocess.run(["iw", "dev"], capture_output=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return {"mode": "offline"}
+    for block in out.split(b"Interface ")[1:]:
+        ssid = re.search(rb"^\s*ssid (.*)$", block, re.M)
+        typ = re.search(rb"^\s*type (\S+)", block, re.M)
+        if ssid and typ and typ[1] in (b"AP", b"managed"):
+            # iw writes bytes it can't print (and the backslash) as \xNN
+            raw = re.sub(rb"\\x([0-9a-f]{2})", lambda m: bytes([int(m[1], 16)]), ssid[1])
+            return {"mode": "hotspot" if typ[1] == b"AP" else "wifi",
+                    "ssid": raw.decode("utf-8", "replace")}
     return {"mode": "offline"}
 
 

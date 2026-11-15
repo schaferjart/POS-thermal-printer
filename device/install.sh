@@ -26,7 +26,7 @@ log "packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q --no-install-recommends \
-  git curl cups cups-filters avahi-daemon libnss-mdns \
+  git curl iw cups cups-filters avahi-daemon libnss-mdns \
   python3 python3-venv python3-flask python3-pil python3-yaml python3-qrcode
 
 log "code in $DIR"
