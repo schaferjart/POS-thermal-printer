@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Portrait renderer. Coolify: base directory `renderer/`, Dockerfile build pack.
 FROM python:3.12-slim
 
