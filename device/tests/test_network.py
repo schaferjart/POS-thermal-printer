@@ -185,3 +185,22 @@ def test_hotspot_slip_carries_password(monkeypatch):
     monkeypatch.setattr(printerd, "hotspot_password", lambda: "")
     printerd.network_slip({"mode": "hotspot", "ssid": "printer-9be6"})
     assert sent["qr"] == "WIFI:T:nopass;S:printer-9be6;;"
+
+
+def test_moved_printer_gets_setup_slip_soon_after_power_on(monkeypatch, slips):
+    clock = [1_000_000.0]
+    monkeypatch.setattr(printerd.time, "time", lambda: clock[0])
+    monkeypatch.setattr(printerd, "_hotspot_since", None)
+    monkeypatch.setattr(printerd, "_schedule", lambda delay, fn: None)
+    use(monkeypatch, HOME)
+    printerd.network_sync()                       # it knew a WiFi at home
+    monkeypatch.setattr(printerd, "_hotspot_since", None)   # power off, carried away
+    monkeypatch.setattr(printerd, "uptime", lambda: 40.0)   # switched on 40 s ago
+    use(monkeypatch, HOTSPOT)
+    printerd.network_sync()
+    clock[0] += 60
+    printerd.network_sync()                       # comitup's start-up blip: still nothing
+    assert len(slips) == 1
+    clock[0] += 70
+    printerd.network_sync()                       # 2 min without WiFi: help now, not in 10
+    assert slips[1:] == [{"mode": "hotspot", "ssid": "printer-9be6"}]

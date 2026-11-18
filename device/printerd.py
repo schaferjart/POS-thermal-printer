@@ -263,7 +263,17 @@ _page_wanted = threading.Event()     # serve the page port? (not while the hotsp
 
 HOTSPOT_GRACE = 600              # lost a known WiFi: wait this long before printing help
 HOTSPOT_SLIP_EVERY = 24 * 3600   # and print the setup slip at most once a day
+BOOT_GRACE = 120                 # just switched on: probably moved, help sooner
+BOOT_WINDOW = 600                # "just switched on" = up for less than this
 _hotspot_since: float | None = None
+_hotspot_wait = HOTSPOT_GRACE
+
+
+def uptime() -> float:
+    try:
+        return float(Path("/proc/uptime").read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return BOOT_WINDOW                  # unknown (e.g. a Mac): not just booted
 
 
 def _schedule(delay: float, fn) -> None:
@@ -273,7 +283,7 @@ def _schedule(delay: float, fn) -> None:
 
 
 def network_sync() -> None:
-    global _hotspot_since
+    global _hotspot_since, _hotspot_wait
     with _net_lock:
         net = network()
         if net["mode"] == "hotspot":
@@ -295,12 +305,14 @@ def network_sync() -> None:
             if last and last["mode"] == "wifi":
                 # It had a WiFi. Phone hotspots come and go, and comitup passes
                 # through its own hotspot on every start: only print the setup
-                # slip when the WiFi stays gone.
+                # slip when the WiFi stays gone. Right after power-on it was most
+                # likely moved to a new place, so the wait is short.
                 if _hotspot_since is None:
                     _hotspot_since = now
-                    _schedule(HOTSPOT_GRACE + 5, network_sync)
+                    _hotspot_wait = BOOT_GRACE if uptime() < BOOT_WINDOW else HOTSPOT_GRACE
+                    _schedule(_hotspot_wait + 5, network_sync)
                     return
-                if now - _hotspot_since < HOTSPOT_GRACE:
+                if now - _hotspot_since < _hotspot_wait:
                     return
             if now - saved.get("hotspot_slip_at", 0) < HOTSPOT_SLIP_EVERY:
                 return                        # not saved: back on the old WiFi = no slip
