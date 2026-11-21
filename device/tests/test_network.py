@@ -178,11 +178,13 @@ def test_slips_render(monkeypatch, tmp_path):
 def test_hotspot_slip_carries_password(monkeypatch):
     import printerd
     sent = {}
-    monkeypatch.setattr(printerd, "slip", lambda text, title, qr_data="", caption="": sent.update(text=text, qr=qr_data))
+    monkeypatch.setattr(printerd, "slip", lambda text, title, codes=None: sent.update(
+        qr=codes[0][0], caption=codes[0][1], setup=codes[1][0]))
     monkeypatch.setattr(printerd, "hotspot_password", lambda: "k7m2pq9x")
     printerd.network_slip({"mode": "hotspot", "ssid": "printer-9be6"})
     assert sent["qr"] == "WIFI:T:WPA;S:printer-9be6;P:k7m2pq9x;;"
-    assert "k7m2pq9x" in sent["text"]
+    assert "k7m2pq9x" in sent["caption"]
+    assert sent["setup"] == "http://10.41.0.1"
     monkeypatch.setattr(printerd, "hotspot_password", lambda: "")
     printerd.network_slip({"mode": "hotspot", "ssid": "printer-9be6"})
     assert sent["qr"] == "WIFI:T:nopass;S:printer-9be6;;"
@@ -212,7 +214,7 @@ def test_connected_slip_waits_for_the_address(monkeypatch):
     seen = []
     monkeypatch.setattr(printerd, "local_ip", lambda: next(ips))
     monkeypatch.setattr(printerd.time, "sleep", lambda s: None)
-    monkeypatch.setattr(printerd, "slip", lambda text, title, qr_data="", caption="": seen.append(text))
+    monkeypatch.setattr(printerd, "slip", lambda text, title, codes=None: seen.append(text))
     printerd.network_slip({"mode": "wifi", "ssid": "Home"})
     assert next(ips, "done") == "done"            # asked until a real address came
     assert seen and "Home" in seen[0]

@@ -175,19 +175,20 @@ def page_qr_url() -> str:
     return f"http://{local_ip()}{_port_suffix()}"
 
 
-def slip(markdown_text: str, title: str, qr_data: str = "", caption: str = "") -> None:
-    """A status slip: the text, then a QR code (by default: open the print page)."""
-    qr_data = qr_data or page_qr_url()
-    caption = caption or f"Scan to open the print page\n\n{page_qr_url()}"
-    text = jobs.render(CFG, "markdown", {"body": markdown_text, "style": "helvetica",
-                                         "show_date": False}).images[0]
-    qr = qrcode.make(qr_data, box_size=7, border=3).get_image().convert("1")
-    url = jobs.render(CFG, "markdown", {"body": caption,
-                                        "style": "helvetica", "show_date": False}).images[0]
-    out = Image.new("1", (PAPER, text.height + qr.height + url.height), 1)
-    out.paste(text, (0, 0))
-    out.paste(qr, ((PAPER - qr.width) // 2, text.height))
-    out.paste(url, (0, text.height + qr.height))
+def slip(markdown_text: str, title: str, codes: list[tuple[str, str]] | None = None) -> None:
+    """A status slip: the text, then QR codes, each with its caption below
+    (by default one: open the print page)."""
+    codes = codes or [(page_qr_url(), f"Scan to open the print page\n\n{page_qr_url()}")]
+    md = lambda body: jobs.render(CFG, "markdown", {"body": body, "style": "helvetica",
+                                                    "show_date": False}).images[0]
+    parts = [md(markdown_text)]
+    for data, caption in codes:
+        parts += [qrcode.make(data, box_size=7, border=3).get_image().convert("1"), md(caption)]
+    out = Image.new("1", (PAPER, sum(p.height for p in parts)), 1)
+    y = 0
+    for p in parts:
+        out.paste(p, ((PAPER - p.width) // 2, y))
+        y += p.height
     print_plan(jobs.Plan([out]), title)
 
 
@@ -246,20 +247,21 @@ def wait_ip(timeout: float = 45) -> str:
 def network_slip(net: dict) -> None:
     if net["mode"] == "hotspot":
         ap, pw = net["ssid"], hotspot_password()
-        join = f"join the WiFi **{ap}**, password **{pw}**" if pw else f"join the WiFi **{ap}**"
         qr = f"WIFI:T:WPA;S:{ap};P:{pw};;" if pw else f"WIFI:T:nopass;S:{ap};;"
+        setup = "http://10.41.0.1"           # comitup-web; its DNS sends every name there too
         slip(f"# WiFi setup\n\n**{device_name()}** found no WiFi it knows, so it opened "
-             f"its own WiFi: **{ap}**\n\n"
-             f"0. First copy your WiFi's password, you need it in step 2. If your phone "
-             f"is on that WiFi: iPhone: Settings > Wi-Fi > (i) > Password > Copy. "
-             f"Android: Settings > Wi-Fi > your WiFi > Share.\n\n"
-             f"1. On your phone, {join} (or scan the code below).\n\n"
-             f"2. A page opens (if not, open http://10.41.0.1). Pick your WiFi and enter "
-             f"its password.\n\n"
-             f"3. The printer joins it and prints \"Connected\".\n\n"
+             f"its own WiFi.\n\n"
+             f"First copy your WiFi's password. If your phone is on that WiFi: iPhone: "
+             f"Settings > Wi-Fi > (i) > Password > Copy. Android: Settings > Wi-Fi > "
+             f"your WiFi > Share.\n\n"
              f"Using a phone's hotspot as the WiFi? The printer only sees 2.4 GHz: on an "
              f"iPhone turn on Maximize Compatibility, on Android choose the 2.4 GHz band.",
-             "hotspot", qr_data=qr, caption=f"Scan to join {ap}")
+             "hotspot", codes=[
+                 (qr, f"**1.** Scan to join **{ap}**" + (f"\n\npassword **{pw}**" if pw else "")),
+                 (setup, f"**2.** Then scan to open the setup page\n\n{setup}\n\n"
+                         f"Pick your WiFi, paste its password. The printer joins it and "
+                         f"prints \"Connected\"."),
+             ])
     else:
         wait_ip()
         slip(f"# Connected\n\n**{device_name()}** is on the WiFi **{net['ssid']}**\n\n"
