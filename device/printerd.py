@@ -234,6 +234,15 @@ def hotspot_password() -> str:
     return m[1] if m else ""
 
 
+def wait_ip(timeout: float = 45) -> str:
+    """NM calls a WiFi "up" before DHCP is done (IPv6 is enough for it). The slip's
+    QR needs the IPv4 address, so wait for one that isn't the hotspot's own."""
+    end = time.time() + timeout
+    while (ip := local_ip()) in ("?", "10.41.0.1") and time.time() < end:
+        time.sleep(1)
+    return ip
+
+
 def network_slip(net: dict) -> None:
     if net["mode"] == "hotspot":
         ap, pw = net["ssid"], hotspot_password()
@@ -241,6 +250,9 @@ def network_slip(net: dict) -> None:
         qr = f"WIFI:T:WPA;S:{ap};P:{pw};;" if pw else f"WIFI:T:nopass;S:{ap};;"
         slip(f"# WiFi setup\n\n**{device_name()}** found no WiFi it knows, so it opened "
              f"its own WiFi: **{ap}**\n\n"
+             f"0. First copy your WiFi's password, you need it in step 2. If your phone "
+             f"is on that WiFi: iPhone: Settings > Wi-Fi > (i) > Password > Copy. "
+             f"Android: Settings > Wi-Fi > your WiFi > Share.\n\n"
              f"1. On your phone, {join} (or scan the code below).\n\n"
              f"2. A page opens (if not, open http://10.41.0.1). Pick your WiFi and enter "
              f"its password.\n\n"
@@ -249,6 +261,7 @@ def network_slip(net: dict) -> None:
              f"iPhone turn on Maximize Compatibility, on Android choose the 2.4 GHz band.",
              "hotspot", qr_data=qr, caption=f"Scan to join {ap}")
     else:
+        wait_ip()
         slip(f"# Connected\n\n**{device_name()}** is on the WiFi **{net['ssid']}**\n\n"
              f"Print page: {page_url()}\n\nAirPrint: {AIRPRINT} @ {hostname()}", "network")
 

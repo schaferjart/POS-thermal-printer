@@ -168,6 +168,7 @@ def test_slips_render(monkeypatch, tmp_path):
     monkeypatch.setattr(printerd, "STATE", tmp_path)
     monkeypatch.setattr(printerd, "DRY", True)
     monkeypatch.setattr(printerd, "local_ip", lambda: "10.41.0.1")
+    monkeypatch.setattr(printerd, "wait_ip", lambda: "192.168.1.112")
     printerd.network_slip({"mode": "hotspot", "ssid": "printer-9be6"})
     printerd.network_slip({"mode": "wifi", "ssid": "Home"})
     pngs = sorted((tmp_path / "out").glob("*.png"))
@@ -204,3 +205,14 @@ def test_moved_printer_gets_setup_slip_soon_after_power_on(monkeypatch, slips):
     clock[0] += 70
     printerd.network_sync()                       # 2 min without WiFi: help now, not in 10
     assert slips[1:] == [{"mode": "hotspot", "ssid": "printer-9be6"}]
+
+
+def test_connected_slip_waits_for_the_address(monkeypatch):
+    ips = iter(["?", "?", "10.41.0.1", "192.168.1.112"])
+    seen = []
+    monkeypatch.setattr(printerd, "local_ip", lambda: next(ips))
+    monkeypatch.setattr(printerd.time, "sleep", lambda s: None)
+    monkeypatch.setattr(printerd, "slip", lambda text, title, qr_data="", caption="": seen.append(text))
+    printerd.network_slip({"mode": "wifi", "ssid": "Home"})
+    assert next(ips, "done") == "done"            # asked until a real address came
+    assert seen and "Home" in seen[0]
