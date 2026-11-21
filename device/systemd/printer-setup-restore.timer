@@ -1,0 +1,8 @@
+[Unit]
+Description=Printer setup test: bring the hidden WiFis back 15 min after boot
+
+[Timer]
+OnBootSec=15min
+
+[Install]
+WantedBy=timers.target

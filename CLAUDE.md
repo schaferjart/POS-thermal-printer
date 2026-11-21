@@ -55,4 +55,5 @@ sudo systemctl status printerd        # the service
 journalctl -u printerd -f             # its log
 lpstat -t                             # CUPS queue Thermal80
 sudo /opt/printer/device/update.sh    # pull + restart now
+sudo /opt/printer/device/setup-test.sh # act as if moved: hide saved WiFis, reboot (back after 15 min)
 ```

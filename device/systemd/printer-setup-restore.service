@@ -1,0 +1,7 @@
+[Unit]
+Description=Printer setup test: bring the hidden WiFis back
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/printer/device/setup-test.sh restore

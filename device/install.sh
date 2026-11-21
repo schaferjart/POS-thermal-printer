@@ -132,6 +132,8 @@ log "services"
 install -m 644 "$DIR/device/systemd/printerd.service"       /etc/systemd/system/
 install -m 644 "$DIR/device/systemd/printer-update.service" /etc/systemd/system/
 install -m 644 "$DIR/device/systemd/printer-update.timer"   /etc/systemd/system/
+install -m 644 "$DIR/device/systemd/printer-setup-restore.service" /etc/systemd/system/
+install -m 644 "$DIR/device/systemd/printer-setup-restore.timer"   /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now printerd.service printer-update.timer >/dev/null
 systemctl restart printerd.service
